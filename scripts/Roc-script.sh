@@ -336,5 +336,32 @@ fi
 # 清理 PassWall 的 chnlist 规则文件
 # echo "baidu.com"  > package/luci-app-passwall/luci-app-passwall/root/usr/share/passwall/rules/chnlist
 
+# ===================== 用户指定插件：第三方源码 clone =====================
+# 用 Wall-WRT 自带 package_enabled 判断（读 General.config / IPQ60XX.config），只在勾选时才 clone
+
+if package_enabled luci-app-tailscale; then
+  clone_repository https://github.com/asvow/luci-app-tailscale main package/luci-app-tailscale
+fi
+
+if package_enabled luci-app-re-homeproxy; then
+  clone_repository https://github.com/1andrevich/homeproxy-hiddify master package/luci-app-re-homeproxy
+fi
+
+if package_enabled luci-app-momo momo; then
+  clone_repository https://github.com/nikkinikki-org/OpenWrt-momo main package/OpenWrt-momo
+fi
+
+if package_enabled luci-app-clashoo clashoo; then
+  clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
+fi
+
+if package_enabled luci-app-nikki-rs nikki-rs; then
+  clone_repository https://github.com/CHKayanami/OpenWrt-nikki-rs main package/OpenWrt-nikki-rs
+fi
+
+if package_enabled luci-app-fchomo mihomo; then
+  clone_repository https://github.com/fcshark-org/openwrt-fchomo master package/openwrt-fchomo
+fi
+
 ./scripts/feeds update -i -a
 ./scripts/feeds install -a
