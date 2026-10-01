@@ -339,9 +339,19 @@ fi
 # ===================== 用户指定插件：第三方源码 clone =====================
 # 用 Wall-WRT 自带 package_enabled 判断（读 General.config / IPQ60XX.config），只在勾选时才 clone
 
-if package_enabled luci-app-tailscale; then
-  clone_repository https://github.com/asvow/luci-app-tailscale main package/luci-app-tailscale
+if package_enabled tailscale; then
+  # 用 whzhni1 的 tailscale 1.102.5（每日 bot 自动跟版）整体替换官方 feed 的 1.98.3
+  rm -rf feeds/packages/net/tailscale package/tailscale
+  clone_repository https://github.com/whzhni1/luci-app-tailscale main package/whzhni1-tailscale
+  mv package/whzhni1-tailscale/tailscale feeds/packages/net/tailscale
+  rm -rf package/whzhni1-tailscale
 fi
+
+if package_enabled luci-app-tailscale-community; then
+  rm -rf feeds/luci/applications/luci-app-tailscale-community
+  clone_repository https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community master package/luci-app-tailscale-community
+fi
+
 
 if package_enabled luci-app-re-homeproxy; then
   clone_repository https://github.com/1andrevich/homeproxy-hiddify master package/luci-app-re-homeproxy
