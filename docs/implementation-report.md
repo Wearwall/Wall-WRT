@@ -627,6 +627,8 @@ jobs:
     env:
       FLAVOR: ${{ matrix.flavor }}
       TZ: Asia/Shanghai
+      # Keep concurrent compiler processes within the hosted runner's memory.
+      JOBS: '2'
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
