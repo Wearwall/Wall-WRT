@@ -20,6 +20,7 @@ build_one() {
   load_target "$1"
   rm -rf "${OUTPUT_ROOT:?}/${FLAVOR:?}"
   sync_source
+  python3 "$PROJECT_ROOT/scripts/firmware-config.py" check-source "$SOURCE_DIR" "$FLAVOR" | tee "$SOURCE_DIR/source-support.txt"
   prepare_feeds
   cd "$SOURCE_DIR"
   bash "$PROJECT_ROOT/scripts/plugins-clone.sh"
@@ -55,6 +56,7 @@ build_one() {
   cp "$LOCK_FILE" "$OUTPUT_ROOT/$FLAVOR/upstream-lock.txt"
   cp third-party-sources.txt "$OUTPUT_ROOT/$FLAVOR/"
   cp config-audit.txt "$OUTPUT_ROOT/$FLAVOR/"
+  cp source-support.txt "$OUTPUT_ROOT/$FLAVOR/"
   (cd "$OUTPUT_ROOT/$FLAVOR"; sha256sum -- * > SHA256SUMS)
 }
 

@@ -1,8 +1,6 @@
 # 雅典娜双分支改造交付记录
-本次工作目录 `/workspace/Wall-WRT`；仅执行静态检查及只读 Git 源码/分支核对，没有运行 make、固件编译、Docker 镜像构建或刷机。代码为本地修改，未推送。云环境安装脚本与启动说明草稿已更新，保存不代表发布。
-**当前阻塞：官方 ImmortalWrt openwrt-25.12 缺雅典娜 profile。双分支入口已经接入，但该线无法出固件；需要人工审核设备支持回移植。LibWrt 连字符符号在真实 Kconfig 中有效，因此保留下划线种子配置并依据生成的元数据解析，避免默默选错机型。**
-原仓库没有用户清单中的 build.sh、Dockerfile、docker-compose.yml、device.config、packages.txt、files/ 或 build.yml。已先通读现有 workflows、Roc-script、SDK-script、配置与 README，再在 Bash/Kconfig 工作方式下补齐。上一轮临时新增的 Athena128G 配置/工作流、check-config.py 和测试由本轮需求替代；不将其旧检查结果算作本次验证。
-## 逐文件改动
+本次工作目录 `/workspace/Wall-WRT`；仅执行静态检查及只读 Git 源码/分支核对，没有运行 make、固件编译、Docker 镜像构建或刷机。初次改造已同步到 GitHub；本次参考仓库的 ImmortalWrt 修复也以独立提交同步。云环境安装脚本与启动说明草稿已更新，保存不代表发布。
+**设备定义阻塞已修复：ImmortalWrt 改用参考 openwrt-ci-roc 的 laipeng668 fork / openwrt-25.12，选择测试内核和 NSS 12.5，并关闭 WiFi NSS；不再使用缺少雅典娜的官方稳定分支。设备树/镜像/网口/校准/eMMC 静态检查通过，完整编译与实机仍未验证。详见 [修复记录](immortalwrt-fix.md)。**
 
 | 文件 | 操作 | 改动与原因 |
 |---|---|---|
@@ -10,13 +8,13 @@
 | `configs/targets.conf` | 新增 | 两条指定仓库/分支/apk/配置路径，key=value 只读解析。 |
 | `configs/device.config` | 新增 | 共用雅典娜单设备配置、关闭多机型、中文与 Docker 内核候选。 |
 | `configs/libwrt.config` | 新增 | NSS 11.4、ath11k NSS/mesh/内存设置仅属于 LibWrt。 |
-| `configs/immortalwrt.config` | 新增 | 不寻找/选择 NSS；记录指定稳定分支缺设备支持。 |
+| `configs/immortalwrt.config` | 新增 | 沿用参考 fork 的测试内核、512M、NSS 12.5；关闭 WiFi NSS / mesh。 |
 | `configs/packages.txt` | 新增 | 四类包及 OpenClash/Passwall/Passwall2；不替换 RE:HomeProxy、Lua Dockerman、AdGuardHome UI 方案。 |
-| `scripts/common.sh` | 新增 | 共用 targets.conf 解析、幂等上游同步、插件 feed 配置和 revision 记录入口。 |
+| `scripts/common.sh` | 新增 | 共用配置/同步；旧官方目录定向迁移 fork，重建 feeds.conf，保留 NSS feed 和 revision 记录。 |
 | `scripts/plugins-clone.sh` | 新增 | 自己实现 package_enabled/clone_repository，按指定源码 clone、原位替换、独立库布局/APK 版本处理与 runc 修复。 |
 | `scripts/sync-upstream.sh` | 新增 | 只同步源码/feeds，打印短 SHA，更新 lock；不编译、不自动提交/推送。 |
 | `scripts/gen-i18n.sh` | 新增 | 无硬编码应用清单，调用实际源码 Po/Makefile 扫描。 |
-| `scripts/firmware-config.py` | 新增 | 设备符号从真实上游解析；缺包警告；语言别名、动态 LAN 路径、并发安全 lock 与产物目标校验。 |
+| `scripts/firmware-config.py` | 新增 | 源码预检、设备符号解析、缺包警告、语言别名、动态 LAN 路径、lock 与各 flavor 内核/NSS 产物校验。 |
 | `scripts/Roc-script.sh` | 修改 | 保留原定制入口，插件逻辑移入共用脚本；LAN patch 不再固定 base-files 路径或旧 IP。 |
 | `scripts/SDK-script.sh` | 修改 | 手动 SDK 工具保留；默认目标改为 qualcommax/ipq60xx，去掉其他设备 profile 和不存在的 x86 config 引用，处理两条 ShellCheck 提示；签名校验不变。 |
 | `files/etc/config/network` | 新增 | 完整静态 LAN 段写入 192.168.6.1/24；标记供硬件配置合并脚本识别。 |
@@ -26,7 +24,7 @@
 | `Dockerfile` | 新增 | 可选 Linux 非 root 编译环境，仅静态读取，本次没有构建镜像。 |
 | `docker-compose.yml` | 新增 | 挂载当前目录、flavor/jobs 与 UID/GID 配置；只验证 compose 语法。 |
 | `.gitignore` | 新增 | 忽略生成源码、日志、产物与 Python 缓存，不忽略 lock。 |
-| `upstream-lock.txt` | 新增 | 24 条真实只读远端 HEAD 观察；不是编译证明/版本固定，sync 会写入实际 checkout HEAD。 |
+| `upstream-lock.txt` | 新增 | 26 条真实只读远端 HEAD 观察；不是编译证明/版本固定，sync 会写入实际 checkout HEAD。 |
 | `README.md` | 修改 | 双线状态、插件矩阵、网络默认值、菜单决策、刷机/升级、产物、NSS 校验、风险与人工核实项。 |
 | `docs/static-checks.txt` | 新增 | 本次实际静态命令与原始输出、退出码，不编造无输出的检查结果。 |
 | `docs/implementation-report.md` | 新增 | 逐文件交付表、完整要求文件快照、检查证据与限制。 |
@@ -130,7 +128,7 @@ LAN 查询在脚本中找到的旧地址仅为替换/残留检查的匹配字符
 
 ## 已知风险与限制
 
-- ImmortalWrt 线没有本仓库的 NSS 固件/WiFi offload；IPQ6018 平台完整 NSS 加速缺失时走常规/软转发，吞吐可能明显低于 LibWrt，幅度需实测。其稳定分支当前还缺雅典娜，不能出包。
+- ImmortalWrt 现在使用参考 CI 的社区 NSS fork，NSS 12.5 提供以太网加速，WiFi 使用正常 ath11k 路径；不能宣称其有 NSS 11.4 的 WiFi offload，也不能沿用之前“全部无 NSS”的性能描述。两条线实际性能差异需实测。测试内核 6.18 与动态 feeds 更新也可能引入新的编译/运行问题。
 - 八个透明代理插件的配置可以同时选择，但本次没有编译证明依赖兼容。**运行时只启用一个**，防火墙规则可能互相覆盖；Open-Box 若另行安装也需独占。本仓库未额外添加 Open-Box。
 - Tailscale 社区前端 `DEPENDS:=+tailscale` 强制 select；要关闭必须守护与前端同时设 n。
 - 按用户提供的故障诊断：Go 1.27 与官方 tailscale 1.98.3 的 json/v2 API 不兼容；保持 whzhni1 替换源，而非无效的 CONFIG_GOLANG_VERSION_1_26 降版本尝试。共用脚本保留模板 laipeng668 Go 源，版本随上游更新；本次没有重现编译错误。
@@ -145,8 +143,8 @@ LAN 查询在脚本中找到的旧地址仅为替换/残留检查的匹配字符
 
 ## 需人工核实项
 
-1. 将 ImmortalWrt master 的完整雅典娜支持审核回移植到指定稳定分支，或由你明确决定改用其他已支持的分支；本次不猜测移植补丁。
-2. 各 upstream-25.12 feed 中 cloudflared、Lua 运行时、内核选项及各插件依赖的最终 Kconfig/manifest；`CONFIG_KERNEL_BRIDGE_NETFILTER` 在此前 LibWrt 静态定义中不存在，实际内核依赖由 kmod-br-netfilter 提供，已保留你要求的候选并警告。
+1. ImmortalWrt fork 的测试内核 6.18 / NSS 12.5 实际构建和启动兼容性，特别是正常 ath11k 无线与以太网 NSS 驱动集成；源码支持已核对，但没有实际出包或刷机。
+2. 各 openwrt-25.12 feed 中 cloudflared、Lua 运行时、内核选项及各插件依赖的最终 Kconfig/manifest；`CONFIG_KERNEL_BRIDGE_NETFILTER` 在此前 LibWrt 静态定义中不存在，实际内核依赖由 kmod-br-netfilter 提供，已保留你要求的候选并警告。
 3. 两个 5g auto radio 的硬件 path 与实际高/低频对应关系、原厂首次安装与跨 flavor 升级布局、128G 数据分区；均需设备验证。
 4. 动态包源的实际版本、Po/PKG_NAME 非标准变量写法、翻译别名、原生菜单，以及代理核心/UI 下载功能；源目录扫描不能代替运行验证。
 5. mihomo / sing-box 等多源同名包的冲突与 Passwall 默认 dnsmasq 替换是否必要，需真实 defconfig 和编译日志判定。
@@ -154,7 +152,7 @@ LAN 查询在脚本中找到的旧地址仅为替换/残留检查的匹配字符
 
 ## 要求交付文件的完整最终内容
 
-以下为本次静态检查后的完整文件快照，可直接核对仓库对应文件。
+以下内容已更新为 ImmortalWrt 修复后的文件快照；当前静态输出新增于 static-checks.txt 和 immortalwrt-fix.md。
 
 ### configs/targets.conf
 
@@ -166,7 +164,8 @@ libwrt_package_manager=apk
 libwrt_device_config=configs/device.config
 libwrt_packages=configs/packages.txt
 libwrt_extra_config=configs/libwrt.config
-immortalwrt_repo=https://github.com/immortalwrt/immortalwrt.git
+# Same Athena-capable fork as laipeng668/openwrt-ci-roc.
+immortalwrt_repo=https://github.com/laipeng668/immortalwrt.git
 immortalwrt_branch=openwrt-25.12
 immortalwrt_package_manager=apk
 immortalwrt_device_config=configs/device.config
@@ -659,12 +658,13 @@ jobs:
             logs/${{ matrix.flavor }}.log
             upstream-lock.txt
             sources/${{ matrix.flavor }}/config-audit.txt
+            sources/${{ matrix.flavor }}/source-support.txt
             sources/${{ matrix.flavor }}/third-party-sources.txt
             sources/${{ matrix.flavor }}/i18n-map.txt
           if-no-files-found: warn
 ```
 
-## 新增核心入口的完整内容
+## 核心入口的完整内容
 
 ### build.sh
 
@@ -691,6 +691,7 @@ build_one() {
   load_target "$1"
   rm -rf "${OUTPUT_ROOT:?}/${FLAVOR:?}"
   sync_source
+  python3 "$PROJECT_ROOT/scripts/firmware-config.py" check-source "$SOURCE_DIR" "$FLAVOR" | tee "$SOURCE_DIR/source-support.txt"
   prepare_feeds
   cd "$SOURCE_DIR"
   bash "$PROJECT_ROOT/scripts/plugins-clone.sh"
@@ -726,6 +727,7 @@ build_one() {
   cp "$LOCK_FILE" "$OUTPUT_ROOT/$FLAVOR/upstream-lock.txt"
   cp third-party-sources.txt "$OUTPUT_ROOT/$FLAVOR/"
   cp config-audit.txt "$OUTPUT_ROOT/$FLAVOR/"
+  cp source-support.txt "$OUTPUT_ROOT/$FLAVOR/"
   (cd "$OUTPUT_ROOT/$FLAVOR"; sha256sum -- * > SHA256SUMS)
 }
 
@@ -781,8 +783,14 @@ CONFIG_ATH11K_NSS_MESH_SUPPORT=y
 ### configs/immortalwrt.config
 
 ```text
-# Official ImmortalWrt: no NSS firmware/offload selections.
-# This branch must gain Athena device support before it can produce an image.
+# Match openwrt-ci-roc's JDCloud line; device selection stays Athena-only.
+CONFIG_TESTING_KERNEL=y
+CONFIG_ATH11K_MEM_PROFILE_512M=y
+CONFIG_NSS_FIRMWARE_VERSION_12_5=y
+# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set
+# IPQ60xx NSS 12.5 does not provide WiFi offload; keep normal ath11k WiFi.
+# CONFIG_ATH11K_NSS_SUPPORT is not set
+# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set
 ```
 
 ### scripts/common.sh
@@ -828,16 +836,30 @@ load_target() {
 }
 
 sync_source() {
+  local previous_origin
   mkdir -p "$SOURCE_ROOT"
   if [ -d "$SOURCE_DIR/.git" ]; then
     # This dedicated generated directory is reset; never point it at a work checkout.
-    [ "$(git -C "$SOURCE_DIR" remote get-url origin)" = "$REPO_URL" ] || die "Unexpected origin in $SOURCE_DIR"
+    previous_origin="$(git -C "$SOURCE_DIR" remote get-url origin)"
+    if [ "$previous_origin" != "$REPO_URL" ]; then
+      if [ "$FLAVOR" = immortalwrt ] && \
+        [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] && \
+        [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; then
+        echo 'Migrating generated ImmortalWrt checkout to the Athena-capable fork'
+        git -C "$SOURCE_DIR" remote set-url origin "$REPO_URL"
+      else
+        die "Unexpected origin in $SOURCE_DIR: $previous_origin"
+      fi
+    fi
     git -C "$SOURCE_DIR" fetch --depth 1 origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
     git -C "$SOURCE_DIR" reset --hard "origin/$REPO_BRANCH"
   else
     [ ! -e "$SOURCE_DIR" ] || die "$SOURCE_DIR exists and is not a source Git checkout"
     git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$SOURCE_DIR"
   fi
+  # feeds.conf takes precedence. Refresh it after reset/migration, otherwise
+  # the old official feed list hides the fork's NSS driver feed.
+  cp "$SOURCE_DIR/feeds.conf.default" "$SOURCE_DIR/feeds.conf"
 }
 
 record_lock() {
@@ -893,6 +915,48 @@ def is_athena(key):
     return key.endswith("_DEVICE_jdcloud_re_cs_02") or key.endswith("_DEVICE_jdcloud_re-cs-02")
 
 
+def check_source(source, flavor):
+    """Read upstream files only, before feeds or make; never fabricate a profile."""
+    target = source / "target/linux/qualcommax"
+    image = target / "image/ipq60xx.mk"
+    text = image.read_text()
+    if not re.search(r"^define Device/jdcloud_re-cs-02\s*$", text, re.M) or not re.search(
+            r"^TARGET_DEVICES\s*\+=\s*jdcloud_re-cs-02\s*$", text, re.M):
+        raise ValueError("Upstream has no Athena image definition; check the configured repository/branch")
+    required = [target / "files/arch/arm64/boot/dts/qcom/ipq6010-re-cs-02.dts",
+                target / "files/arch/arm64/boot/dts/qcom/ipq6010-re-cs.dtsi"]
+    for path in required:
+        if not path.is_file():
+            raise ValueError(f"Missing Athena device tree: {path}")
+    files = [target / "ipq60xx/base-files" / name for name in (
+        "etc/board.d/02_network", "etc/hotplug.d/firmware/11-ath11k-caldata", "lib/upgrade/platform.sh")]
+    for path in files:
+        if "jdcloud,re-cs-02" not in path.read_text():
+            raise ValueError(f"Missing Athena board integration: {path}")
+    if "$(call Device/EmmcImage)" not in text.split("define Device/jdcloud_re-cs-02", 1)[1].split("endef", 1)[0]:
+        raise ValueError("Athena eMMC image layout changed; review upstream")
+    print(f"{flavor}: Athena image/device-tree/network/calibration/eMMC integration found")
+    print(f"Source commit: {git(source, 'rev-parse', 'HEAD')}")
+    if flavor == "immortalwrt":
+        makefile = (target / "Makefile").read_text()
+        kernel = re.search(r"^KERNEL_TESTING_PATCHVER\s*:?=\s*(\S+)", makefile, re.M)
+        if not kernel:
+            raise ValueError("ImmortalWrt fork no longer defines its testing kernel")
+        if "src-git nss_packages " not in (source / "feeds.conf.default").read_text():
+            raise ValueError("ImmortalWrt fork's NSS feed definition is missing")
+        print(f"ImmortalWrt testing kernel: {kernel[1]}; NSS feed present")
+
+
+def flavor_requirements(flavor):
+    if flavor == "libwrt":
+        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y"}
+    if flavor == "immortalwrt":
+        return {"CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
+                "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
+                "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
+    raise ValueError(f"Unknown flavor: {flavor}")
+
+
 def select_device(config, metadata):
     available = set(re.findall(r"^config (TARGET_qualcommax_ipq60xx_DEVICE_\S+)$",
                                metadata.read_text(), re.M))
@@ -901,7 +965,7 @@ def select_device(config, metadata):
     symbol = next((key for key in candidates if key in available), None)
     if not symbol:
         raise ValueError("Upstream has no Athena RE-CS-02 profile. Do not compile another device. "
-                         "Official ImmortalWrt openwrt-25.12 currently needs a reviewed device port.")
+                         "Use the Athena-capable fork configured in targets.conf.")
     lines = [line for line in config.read_text().splitlines()
              if not re.match(r"(?:# )?CONFIG_TARGET_.*_DEVICE_", line)
              and not re.match(r"(?:# )?CONFIG_TARGET_(?:MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)\b", line)]
@@ -927,11 +991,9 @@ def audit(config, packages, flavor):
             warnings.append(f"Docker prerequisite missing: {key}")
     if values.get("CONFIG_KERNEL_BRIDGE_NETFILTER") != "y":
         warnings.append("CONFIG_KERNEL_BRIDGE_NETFILTER is absent; check kernel config via kmod-br-netfilter")
-    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
-        warnings.append("LibWrt WiFi NSS offload requires CONFIG_NSS_FIRMWARE_VERSION_11_4=y")
-    if flavor == "immortalwrt" and any(key.startswith("CONFIG_NSS_FIRMWARE_VERSION_") and value == "y"
-                                     for key, value in values.items()):
-        warnings.append("ImmortalWrt configuration unexpectedly selects NSS firmware")
+    for key, value in flavor_requirements(flavor).items():
+        if values.get(key, "n") != value:
+            warnings.append(f"{flavor} requires {key}={value}")
     if warnings:
         print("\n" + "!" * 72 + "\nWARNING: FINAL CONFIGURATION DIFFERS FROM REQUEST")
         print("\n".join(f"  - {warning}" for warning in warnings))
@@ -1024,8 +1086,9 @@ def artifacts(source, output, flavor):
     devices = selected_devices(values)
     if len(devices) != 1 or not is_athena(devices[0]) or values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
         raise ValueError("Refusing artifacts: final configuration is not Athena only")
-    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
-        raise ValueError("Refusing LibWrt artifacts without NSS firmware 11.4")
+    for key, value in flavor_requirements(flavor).items():
+        if values.get(key, "n") != value:
+            raise ValueError(f"Refusing {flavor} artifacts: {key} must be {value}")
     if values.get("CONFIG_TARGET_BOARD") != '"qualcommax"' or values.get("CONFIG_TARGET_SUBTARGET") != '"ipq60xx"':
         raise ValueError("Refusing artifacts: target is not qualcommax/ipq60xx")
     target = source / "bin/targets/qualcommax/ipq60xx"
@@ -1059,12 +1122,12 @@ def artifacts(source, output, flavor):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("select-device", "audit", "i18n", "network", "lock", "artifacts"))
+    parser.add_argument("operation", choices=("check-source", "select-device", "audit", "i18n", "network", "lock", "artifacts"))
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
-    functions = {"select-device": select_device, "audit": audit, "i18n": i18n,
+    functions = {"check-source": check_source, "select-device": select_device, "audit": audit, "i18n": i18n,
                  "network": network_patch, "lock": lock, "artifacts": artifacts}
-    converted = [Path(value) if index < {"select-device": 2, "audit": 2, "i18n": 1,
+    converted = [Path(value) if index < {"check-source": 1, "select-device": 2, "audit": 2, "i18n": 1,
                                         "network": 1, "lock": 2, "artifacts": 2}[args.operation] else value
                  for index, value in enumerate(args.paths)]
     try:

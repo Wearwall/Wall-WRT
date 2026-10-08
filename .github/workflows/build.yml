@@ -96,6 +96,7 @@ jobs:
             logs/${{ matrix.flavor }}.log
             upstream-lock.txt
             sources/${{ matrix.flavor }}/config-audit.txt
+            sources/${{ matrix.flavor }}/source-support.txt
             sources/${{ matrix.flavor }}/third-party-sources.txt
             sources/${{ matrix.flavor }}/i18n-map.txt
           if-no-files-found: warn

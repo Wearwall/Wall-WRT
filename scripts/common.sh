@@ -38,16 +38,30 @@ load_target() {
 }
 
 sync_source() {
+  local previous_origin
   mkdir -p "$SOURCE_ROOT"
   if [ -d "$SOURCE_DIR/.git" ]; then
     # This dedicated generated directory is reset; never point it at a work checkout.
-    [ "$(git -C "$SOURCE_DIR" remote get-url origin)" = "$REPO_URL" ] || die "Unexpected origin in $SOURCE_DIR"
+    previous_origin="$(git -C "$SOURCE_DIR" remote get-url origin)"
+    if [ "$previous_origin" != "$REPO_URL" ]; then
+      if [ "$FLAVOR" = immortalwrt ] && \
+        [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] && \
+        [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; then
+        echo 'Migrating generated ImmortalWrt checkout to the Athena-capable fork'
+        git -C "$SOURCE_DIR" remote set-url origin "$REPO_URL"
+      else
+        die "Unexpected origin in $SOURCE_DIR: $previous_origin"
+      fi
+    fi
     git -C "$SOURCE_DIR" fetch --depth 1 origin "+refs/heads/$REPO_BRANCH:refs/remotes/origin/$REPO_BRANCH"
     git -C "$SOURCE_DIR" reset --hard "origin/$REPO_BRANCH"
   else
     [ ! -e "$SOURCE_DIR" ] || die "$SOURCE_DIR exists and is not a source Git checkout"
     git clone --depth 1 -b "$REPO_BRANCH" "$REPO_URL" "$SOURCE_DIR"
   fi
+  # feeds.conf takes precedence. Refresh it after reset/migration, otherwise
+  # the old official feed list hides the fork's NSS driver feed.
+  cp "$SOURCE_DIR/feeds.conf.default" "$SOURCE_DIR/feeds.conf"
 }
 
 record_lock() {

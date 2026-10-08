@@ -11,15 +11,19 @@
 | FLAVOR | 仓库 | 跟踪分支 | 包格式 | NSS / 当前设备状态 |
 |---|---|---|---|---|
 | `libwrt` | https://github.com/LiBwrt/LibWrt.git | `25.12-nss` | apk | NSS 11.4，开启 WiFi offload；已有 RE-CS-02 定义 |
-| `immortalwrt` | https://github.com/immortalwrt/immortalwrt.git | `openwrt-25.12` | apk | 不选择 NSS 固件/加速；**当前官方稳定分支没有 RE-CS-02 定义，会明确失败** |
+| `immortalwrt` | https://github.com/laipeng668/immortalwrt.git | `openwrt-25.12` | apk | 沿用 openwrt-ci-roc：测试内核 6.18、NSS 12.5；已有 RE-CS-02 定义，关闭 WiFi NSS offload |
 
-2026-10-08 静态核对：LibWrt `3a3d0b08595530070ad9cd8a20c0ae4ea3e77f70` 有雅典娜；ImmortalWrt 稳定分支 `89dfac46c9f1eaeb56c6cf49eb289b4475f446f7` 没有。ImmortalWrt master `8735c686ae30fe85d94de97669399c2117179f82` 已有雅典娜定义，但内核为 6.18，稳定分支为 6.12。不能只复制 DTS 或偷偷换分支就宣称兼容：需要人工审核设备树、校准数据、镜像布局、网口和 eMMC 升级支持的回移植。此处保留你指定的仓库与分支，第二条线的**构建入口已接好，实际出包仍受设备支持阻塞**。
+2026-10-08 静态核对：[openwrt-ci-roc](https://github.com/laipeng668/openwrt-ci-roc) 的 `JDCloud-ImmortalWrt.yml` 实际使用 `laipeng668/immortalwrt`，而非官方仓库。现已采用相同 fork/分支，保留单雅典娜设置，没有复制其多设备配置。fork 提交 `0a98e096208584bf90982f59f6d5a43f89443276` 已包含雅典娜镜像、设备树、网口、无线校准数据和 eMMC 升级集成；其默认内核 6.12，`CONFIG_TESTING_KERNEL=y` 选择测试内核 6.18。参考 CI 提交为 `2d2c4710ebf9b97c1d30eb63989e3eb69b3583b0`。
+
+这项调整解决的是“源码缺雅典娜设备定义”阻塞。**这条 ImmortalWrt 是带 NSS 的社区 fork，不再描述为官方无 NSS 分支。** IPQ60xx 的 NSS 12.5 不提供 WiFi offload，因此显式关闭 ATH11K_NSS_SUPPORT / MESH，保留正常无线驱动；LibWrt 仍选择 NSS 11.4 与 WiFi offload。两条线的最终配置、完整镜像及实机功能仍未编译验证。
+
+构建在 feeds 下载前静态检查雅典娜源码集成；上游若删除支持，会提前报错。缺少生成的 Kconfig profile 时仍拒绝编译其他机型。具体修复证据见 [ImmortalWrt 修复记录](docs/immortalwrt-fix.md)。
 
 `configs/device.config` 使用你要求的下划线设备符号并关闭多机型。实际 LibWrt Kconfig 由 `scripts/target-metadata.pl` 生成，目前定义的是 `CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02`；连字符并非无效。构建会读取 `tmp/.config-target.in`，只在确实定义了对应符号时解析为该形式，再执行 defconfig。两种拼写都不存在则停止，防止 Kconfig 默认选中其他设备。最终 .config 中其他设备的 `# … is not set` 属于上游正常输出，不代表构建它们。
 
 ## 本地 / 云构建
 
-配置入口：`configs/targets.conf` 描述源码、分支和配置路径；`configs/device.config` 为共用设备设置；`configs/libwrt.config` 只含 NSS 等 LibWrt 选项；`configs/immortalwrt.config` 不含 NSS；`configs/packages.txt` 是唯一插件选择清单。关包用 `=n` 或 `# CONFIG_PACKAGE_xxx is not set`，最后一条设置生效。
+配置入口：`configs/targets.conf` 描述源码、分支和配置路径；`configs/device.config` 为共用设备设置；`configs/libwrt.config` 只含 NSS 等 LibWrt 选项；`configs/immortalwrt.config` 选择参考 fork 的测试内核、512M ath11k 内存配置及 NSS 12.5，并关闭 WiFi NSS offload；`configs/packages.txt` 是唯一插件选择清单。关包用 `=n` 或 `# CONFIG_PACKAGE_xxx is not set`，最后一条设置生效。
 
 Linux 构建命令（本次未执行）：
 
@@ -29,7 +33,7 @@ FLAVOR=immortalwrt JOBS=4 bash build.sh
 FLAVOR=all JOBS=4 bash build.sh  # 默认 all，一条线失败仍尝试另一条
 ```
 
-源码位于 `sources/<flavor>/`。已有目录每次执行 fetch + reset --hard 到跟踪分支最新提交；这是专用生成目录，**不要把 SOURCE_ROOT 指向有个人修改的源码工作目录**。插件也每次删除专用目录重新浅克隆。上游动态更新不固定在 lock 的历史版本，构建中仍保留原下载哈希检查。
+源码位于 `sources/<flavor>/`。已有目录每次执行 fetch + reset --hard 到跟踪分支最新提交；这是专用生成目录，**不要把 SOURCE_ROOT 指向有个人修改的源码工作目录**。从此前官方 ImmortalWrt 迁移的专用源码目录，会自动将 origin 改为指定 fork 并 fetch/reset；其他非预期 origin 仍拒绝操作。每次同步也从上游 feeds.conf.default 重建专用 feeds.conf，防止旧 feed 清单遮蔽 fork 的 NSS feed；不要在生成目录中保存个人 feed 修改。插件也每次删除专用目录重新浅克隆。上游动态更新不固定在 lock 的历史版本，构建中仍保留原下载哈希检查。
 
 只同步源码与 feeds，不编译：
 
@@ -105,7 +109,7 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部。脚本遍
 
 ## 产物、刷机与升级
 
-源码产物目录固定为 `sources/<flavor>/bin/targets/qualcommax/ipq60xx/`，交付目录为 `artifacts/<flavor>/`。只收集名字含 `jdcloud_re-cs-02` 的镜像，至少要求非空 sysupgrade、manifest、正确单设备目标；检测到其他设备镜像或 LibWrt 丢失 NSS 11.4 就不交付。附 .config、manifest、上游与插件 SHA、语言对照表、警告日志、构建信息及 SHA256SUMS。**缺包警告不会终止编译，须检查 config-audit.txt 与 manifest，确认可以接受后再刷机。**
+源码产物目录固定为 `sources/<flavor>/bin/targets/qualcommax/ipq60xx/`，交付目录为 `artifacts/<flavor>/`。只收集名字含 `jdcloud_re-cs-02` 的镜像，至少要求非空 sysupgrade、manifest、正确单设备目标；检测到其他设备镜像、LibWrt 丢失 NSS 11.4，或 ImmortalWrt 丢失测试内核/NSS 12.5/512M 设定、错误打开 WiFi NSS 就不交付。附 .config、manifest、上游与插件 SHA、语言对照表、警告日志、构建信息及 SHA256SUMS。**缺包警告不会终止编译，须检查 config-audit.txt 与 manifest，确认可以接受后再刷机。**
 
 首次刷机：
 
@@ -127,7 +131,7 @@ dmesg | grep -iE 'nss|ath11k'
 
 ## 已知风险与限制
 
-- ImmortalWrt 线没有本仓库的 NSS 固件/WiFi offload；IPQ6018 平台完整 NSS 加速缺失时走常规/软转发，吞吐可能明显低于 LibWrt，幅度需实测。其稳定分支当前还缺雅典娜，不能出包。
+- ImmortalWrt 现在使用参考 CI 的社区 NSS fork，NSS 12.5 提供以太网加速，WiFi 使用正常 ath11k 路径；不能宣称其有 NSS 11.4 的 WiFi offload，也不能沿用之前“全部无 NSS”的性能描述。两条线实际性能差异需实测。测试内核 6.18 与动态 feeds 更新也可能引入新的编译/运行问题。
 - 八个透明代理插件的配置可以同时选择，但本次没有编译证明依赖兼容。**运行时只启用一个**，防火墙规则可能互相覆盖；Open-Box 若另行安装也需独占。本仓库未额外添加 Open-Box。
 - Tailscale 社区前端 `DEPENDS:=+tailscale` 强制 select；要关闭必须守护与前端同时设 n。
 - 按用户提供的故障诊断：Go 1.27 与官方 tailscale 1.98.3 的 json/v2 API 不兼容；保持 whzhni1 替换源，而非无效的 CONFIG_GOLANG_VERSION_1_26 降版本尝试。共用脚本保留模板 laipeng668 Go 源，版本随上游更新；本次没有重现编译错误。
@@ -142,8 +146,8 @@ dmesg | grep -iE 'nss|ath11k'
 
 ## 需人工核实项
 
-1. 将 ImmortalWrt master 的完整雅典娜支持审核回移植到指定稳定分支，或由你明确决定改用其他已支持的分支；本次不猜测移植补丁。
-2. 各 upstream-25.12 feed 中 cloudflared、Lua 运行时、内核选项及各插件依赖的最终 Kconfig/manifest；`CONFIG_KERNEL_BRIDGE_NETFILTER` 在此前 LibWrt 静态定义中不存在，实际内核依赖由 kmod-br-netfilter 提供，已保留你要求的候选并警告。
+1. ImmortalWrt fork 的测试内核 6.18 / NSS 12.5 实际构建和启动兼容性，特别是正常 ath11k 无线与以太网 NSS 驱动集成；源码支持已核对，但没有实际出包或刷机。
+2. 各 openwrt-25.12 feed 中 cloudflared、Lua 运行时、内核选项及各插件依赖的最终 Kconfig/manifest；`CONFIG_KERNEL_BRIDGE_NETFILTER` 在此前 LibWrt 静态定义中不存在，实际内核依赖由 kmod-br-netfilter 提供，已保留你要求的候选并警告。
 3. 两个 5g auto radio 的硬件 path 与实际高/低频对应关系、原厂首次安装与跨 flavor 升级布局、128G 数据分区；均需设备验证。
 4. 动态包源的实际版本、Po/PKG_NAME 非标准变量写法、翻译别名、原生菜单，以及代理核心/UI 下载功能；源目录扫描不能代替运行验证。
 5. mihomo / sing-box 等多源同名包的冲突与 Passwall 默认 dnsmasq 替换是否必要，需真实 defconfig 和编译日志判定。
@@ -161,4 +165,4 @@ docker compose config --quiet
 # 编译入口 patch 后，应针对实际发现的 config_generate 检查旧 LAN 地址。
 ```
 
-本次真实输出、逐文件改动表与要求交付文件的完整内容见 [改造交付记录](docs/implementation-report.md)。环境已沿用 cloud-environment-onboarding:setup 配置静态工具；没有创建工作树、执行固件编译或推送到 GitHub。
+本次真实输出、逐文件改动表与要求交付文件的完整内容见 [改造交付记录](docs/implementation-report.md)。环境已沿用 cloud-environment-onboarding:setup 配置静态工具；没有创建工作树或执行固件编译；源码已同步至 GitHub，后续修复也通过带 [skip ci] 的提交同步，避免自动触发推送编译。

@@ -36,6 +36,48 @@ def is_athena(key):
     return key.endswith("_DEVICE_jdcloud_re_cs_02") or key.endswith("_DEVICE_jdcloud_re-cs-02")
 
 
+def check_source(source, flavor):
+    """Read upstream files only, before feeds or make; never fabricate a profile."""
+    target = source / "target/linux/qualcommax"
+    image = target / "image/ipq60xx.mk"
+    text = image.read_text()
+    if not re.search(r"^define Device/jdcloud_re-cs-02\s*$", text, re.M) or not re.search(
+            r"^TARGET_DEVICES\s*\+=\s*jdcloud_re-cs-02\s*$", text, re.M):
+        raise ValueError("Upstream has no Athena image definition; check the configured repository/branch")
+    required = [target / "files/arch/arm64/boot/dts/qcom/ipq6010-re-cs-02.dts",
+                target / "files/arch/arm64/boot/dts/qcom/ipq6010-re-cs.dtsi"]
+    for path in required:
+        if not path.is_file():
+            raise ValueError(f"Missing Athena device tree: {path}")
+    files = [target / "ipq60xx/base-files" / name for name in (
+        "etc/board.d/02_network", "etc/hotplug.d/firmware/11-ath11k-caldata", "lib/upgrade/platform.sh")]
+    for path in files:
+        if "jdcloud,re-cs-02" not in path.read_text():
+            raise ValueError(f"Missing Athena board integration: {path}")
+    if "$(call Device/EmmcImage)" not in text.split("define Device/jdcloud_re-cs-02", 1)[1].split("endef", 1)[0]:
+        raise ValueError("Athena eMMC image layout changed; review upstream")
+    print(f"{flavor}: Athena image/device-tree/network/calibration/eMMC integration found")
+    print(f"Source commit: {git(source, 'rev-parse', 'HEAD')}")
+    if flavor == "immortalwrt":
+        makefile = (target / "Makefile").read_text()
+        kernel = re.search(r"^KERNEL_TESTING_PATCHVER\s*:?=\s*(\S+)", makefile, re.M)
+        if not kernel:
+            raise ValueError("ImmortalWrt fork no longer defines its testing kernel")
+        if "src-git nss_packages " not in (source / "feeds.conf.default").read_text():
+            raise ValueError("ImmortalWrt fork's NSS feed definition is missing")
+        print(f"ImmortalWrt testing kernel: {kernel[1]}; NSS feed present")
+
+
+def flavor_requirements(flavor):
+    if flavor == "libwrt":
+        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y"}
+    if flavor == "immortalwrt":
+        return {"CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
+                "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
+                "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
+    raise ValueError(f"Unknown flavor: {flavor}")
+
+
 def select_device(config, metadata):
     available = set(re.findall(r"^config (TARGET_qualcommax_ipq60xx_DEVICE_\S+)$",
                                metadata.read_text(), re.M))
@@ -44,7 +86,7 @@ def select_device(config, metadata):
     symbol = next((key for key in candidates if key in available), None)
     if not symbol:
         raise ValueError("Upstream has no Athena RE-CS-02 profile. Do not compile another device. "
-                         "Official ImmortalWrt openwrt-25.12 currently needs a reviewed device port.")
+                         "Use the Athena-capable fork configured in targets.conf.")
     lines = [line for line in config.read_text().splitlines()
              if not re.match(r"(?:# )?CONFIG_TARGET_.*_DEVICE_", line)
              and not re.match(r"(?:# )?CONFIG_TARGET_(?:MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)\b", line)]
@@ -70,11 +112,9 @@ def audit(config, packages, flavor):
             warnings.append(f"Docker prerequisite missing: {key}")
     if values.get("CONFIG_KERNEL_BRIDGE_NETFILTER") != "y":
         warnings.append("CONFIG_KERNEL_BRIDGE_NETFILTER is absent; check kernel config via kmod-br-netfilter")
-    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
-        warnings.append("LibWrt WiFi NSS offload requires CONFIG_NSS_FIRMWARE_VERSION_11_4=y")
-    if flavor == "immortalwrt" and any(key.startswith("CONFIG_NSS_FIRMWARE_VERSION_") and value == "y"
-                                     for key, value in values.items()):
-        warnings.append("ImmortalWrt configuration unexpectedly selects NSS firmware")
+    for key, value in flavor_requirements(flavor).items():
+        if values.get(key, "n") != value:
+            warnings.append(f"{flavor} requires {key}={value}")
     if warnings:
         print("\n" + "!" * 72 + "\nWARNING: FINAL CONFIGURATION DIFFERS FROM REQUEST")
         print("\n".join(f"  - {warning}" for warning in warnings))
@@ -167,8 +207,9 @@ def artifacts(source, output, flavor):
     devices = selected_devices(values)
     if len(devices) != 1 or not is_athena(devices[0]) or values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
         raise ValueError("Refusing artifacts: final configuration is not Athena only")
-    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
-        raise ValueError("Refusing LibWrt artifacts without NSS firmware 11.4")
+    for key, value in flavor_requirements(flavor).items():
+        if values.get(key, "n") != value:
+            raise ValueError(f"Refusing {flavor} artifacts: {key} must be {value}")
     if values.get("CONFIG_TARGET_BOARD") != '"qualcommax"' or values.get("CONFIG_TARGET_SUBTARGET") != '"ipq60xx"':
         raise ValueError("Refusing artifacts: target is not qualcommax/ipq60xx")
     target = source / "bin/targets/qualcommax/ipq60xx"
@@ -202,12 +243,12 @@ def artifacts(source, output, flavor):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("select-device", "audit", "i18n", "network", "lock", "artifacts"))
+    parser.add_argument("operation", choices=("check-source", "select-device", "audit", "i18n", "network", "lock", "artifacts"))
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
-    functions = {"select-device": select_device, "audit": audit, "i18n": i18n,
+    functions = {"check-source": check_source, "select-device": select_device, "audit": audit, "i18n": i18n,
                  "network": network_patch, "lock": lock, "artifacts": artifacts}
-    converted = [Path(value) if index < {"select-device": 2, "audit": 2, "i18n": 1,
+    converted = [Path(value) if index < {"check-source": 1, "select-device": 2, "audit": 2, "i18n": 1,
                                         "network": 1, "lock": 2, "artifacts": 2}[args.operation] else value
                  for index, value in enumerate(args.paths)]
     try:

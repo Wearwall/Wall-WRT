@@ -74,3 +74,65 @@ Actual LibWrt Kconfig spelling (read-only)
 $ grep -n '^config TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02$' /workspace/.wall-wrt-env/diagnosis/openwrt/tmp/.config-target.in
 79198:config TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02
 [exit 0]
+
+
+ImmortalWrt follow-up fix: actual static outputs, 2026-10-08.
+Source checks read files only; no make/build/feeds update/flash executed.
+
+Reference CI source selection
+$ git -C /workspace/.wall-wrt-env/diagnosis/roc-ci-reference rev-parse HEAD; grep -n 'repo_url:\|repo_branch:\|kernel_file:' /workspace/.wall-wrt-env/diagnosis/roc-ci-reference/.github/workflows/JDCloud-ImmortalWrt.yml; grep -n 'CONFIG_TESTING_KERNEL\|CONFIG_ATH11K_MEM_PROFILE_512M\|CONFIG_NSS_FIRMWARE_VERSION_12_5' /workspace/.wall-wrt-env/diagnosis/roc-ci-reference/configs/JDCloud.config
+2d2c4710ebf9b97c1d30eb63989e3eb69b3583b0
+20:      repo_url: https://github.com/laipeng668/immortalwrt.git
+21:      repo_branch: openwrt-25.12
+24:      kernel_file: kernel-6.18
+8:CONFIG_TESTING_KERNEL=y
+9:CONFIG_ATH11K_MEM_PROFILE_512M=y
+10:CONFIG_NSS_FIRMWARE_VERSION_12_5=y
+[exit 0]
+
+Selected fork: read-only source integration check
+$ python3 scripts/firmware-config.py check-source /workspace/.wall-wrt-env/diagnosis/immortal-jdcloud-reference immortalwrt
+immortalwrt: Athena image/device-tree/network/calibration/eMMC integration found
+Source commit: 0a98e096208584bf90982f59f6d5a43f89443276
+ImmortalWrt testing kernel: 6.18; NSS feed present
+[exit 0]
+
+LibWrt: read-only source integration check
+$ python3 scripts/firmware-config.py check-source /workspace/.wall-wrt-env/diagnosis/openwrt libwrt
+libwrt: Athena image/device-tree/network/calibration/eMMC integration found
+Source commit: 3a3d0b08595530070ad9cd8a20c0ae4ea3e77f70
+[exit 0]
+
+Every shell file
+$ for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script" || exit; done
+[exit 0]
+
+ShellCheck
+$ shellcheck build.sh scripts/*.sh
+[exit 0]
+
+Router POSIX shell check
+$ shellcheck -s sh files/etc/uci-defaults/*
+[exit 0]
+
+Python source syntax
+$ python3 -c 'import ast,pathlib; paths=list(pathlib.Path("scripts").glob("*.py")); [ast.parse(p.read_text(), filename=str(p)) for p in paths]; print("Python AST files checked:", len(paths))'
+Python AST files checked: 1
+[exit 0]
+
+JSON syntax
+$ python3 -c 'import json,pathlib; paths=list(pathlib.Path("files").rglob("*.json")); [json.loads(p.read_text()) for p in paths]; print("JSON files checked:", len(paths))'
+JSON files checked: 0
+[exit 0]
+
+Actions workflow
+$ /workspace/.wall-wrt-env/bin/actionlint .github/workflows/build.yml
+[exit 0]
+
+Docker Compose syntax only
+$ docker compose config --quiet
+[exit 0]
+
+Whitespace
+$ git diff --check
+[exit 0]
