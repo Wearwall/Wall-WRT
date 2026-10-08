@@ -337,7 +337,7 @@ fi
 # echo "baidu.com"  > package/luci-app-passwall/luci-app-passwall/root/usr/share/passwall/rules/chnlist
 
 # ===================== 用户指定插件：第三方源码 clone =====================
-# 用 Wall-WRT 自带 package_enabled 判断（读 General.config / IPQ60XX.config），只在勾选时才 clone
+# 用 Wall-WRT 自带 package_enabled 判断（读 General.config / JDCloud-Athena.config），只在勾选时才 clone
 
 if package_enabled tailscale; then
   # 用 whzhni1 的 tailscale 1.102.5（每日 bot 自动跟版）整体替换官方 feed 的 1.98.3（后者在 Go 1.27 下编译失败）
@@ -380,31 +380,25 @@ if package_enabled luci-app-fchomo mihomo; then
   clone_repository https://github.com/fcshark-org/openwrt-fchomo master package/openwrt-fchomo
 fi
 
-if package_enabled luci-app-dockerman; then
-  # 经典版 dockerman（主菜单顶级「容器」入口，含 Container/Images/Networks/Volumes）。
-  # 官方 luci feed 已有同名 JS 版（长在「服务」菜单下），必须先删 feed 副本，否则会被遮蔽编成 JS 版。
-  rm -rf feeds/luci/applications/luci-app-dockerman
-  clone_repository https://github.com/lisaac/luci-app-dockerman master package/lisaac-dockerman
-  # ⚠️ luci-lib-docker 已被官方 luci feed 移除、也不在 dockerman 同仓，必须单独 clone，否则 dockerman 依赖无法满足，
-  #    镜像打包阶段报 "luci-lib-docker (no such package)" 直接拖垮 world（2026-10-07 第三次构建实测）。
-  #    其仓库 Makefile 在 collections/luci-lib-docker/ 下，这里 mv 成标准布局放到 package/luci-lib-docker/。
-  rm -rf package/luci-lib-docker package/luci-lib-docker-tmp
-  clone_repository https://github.com/lisaac/luci-lib-docker master package/luci-lib-docker-tmp
-  mv package/luci-lib-docker-tmp/collections/luci-lib-docker package/luci-lib-docker
-  rm -rf package/luci-lib-docker-tmp
-  # ⚠️ APK 包格式（OpenWrt 25.12/SNAPSHOT）版本号不允许 v 前缀：luci-lib-docker PKG_VERSION:=v0.3.4 与
-  #    dockerman PKG_VERSION:=v0.5.26 都带 v，打包阶段会报 "package version is invalid" (Error 99)。
-  #    构建前把两者 v 前缀都去掉，包名变 0.3.4-r1 / 0.5.26-r1.apk 即合法。
-  sed -i 's/^PKG_VERSION:=v0.3.4/PKG_VERSION:=0.3.4/' package/luci-lib-docker/Makefile
-  sed -i 's/^PKG_VERSION:=v0.5.26/PKG_VERSION:=0.5.26/' package/lisaac-dockerman/applications/luci-app-dockerman/Makefile
-  # 重命名主菜单：Docker → 容器（仅改顶级菜单标题字符串，子菜单 Containers/Images 等不受影响）
-  sed -i 's/_("Docker")/_("容器")/g' package/lisaac-dockerman/applications/luci-app-dockerman/luasrc/controller/dockerman.lua
-fi
-
-# iStore 应用商店：官方推荐的固件集成方式——把 istore feed 追加进 feeds.conf.default，
-# 由下面紧跟着的 feeds update / install 解析依赖（luci-app-store + luci-lib-taskd + taskd）。
-# （2026-10-07 起弃用整仓 clone 到 package/ 的方式：luci.mk 版包在实际构建中被 defconfig 静默丢弃）
+# iStore 应用商店：官方推荐的固件集成方式——把 istore feed 追加进 feeds 配置。
+# ⚠️ 真·根因（2026-10-08 用 scripts/feeds 源码 + 三份构建日志坐实）：
+#    scripts/feeds 的 parse_config() 优先读 feeds.conf，不存在才读 feeds.conf.default；
+#    而 feeds.conf 是构建早期 `make defconfig` 从 feeds.conf.default 自动重新生成的。
+#    → 只把 src-git istore 写进 feeds.conf.default 不够：脚本跑 `./scripts/feeds update istore` 时，
+#      parse_config 读的是「已生成、但此刻还没有 istore 的」feeds.conf → 找不到 istore → 静默跳过、零克隆；
+#      随后 refresh_config 触发的 make defconfig 才把 istore 补进 feeds.conf，结尾 `feeds update -i -a`
+#      只建了个空索引（日志里只有 feeds/istore.index，没有 Cloning into）→ 固件没 iStore。
+#    ✅ 修复：istore 行【必须同时写进 feeds.conf 和 feeds.conf.default】两份（下面两行 grep 各管一份）。
+#    随后 `feeds update istore`（不带 -i，真实克隆，日志须出现 "Updating feed 'istore' from ..." +
+#    "Cloning into 'istore'..."，这就是验收标志）和 `feeds install istore`（立即建软链，不依赖结尾
+#    `feeds install -a`）才是 iStore 进固件的分水岭。
+#    （补充：结尾的 `feeds update -i -a` 中 `-i` 真实语义＝只重建索引、绝不克隆，源码原文
+#     "Recreate the index only. No feed update from repository is performed"，同样不能指望它来克隆 istore。）
 grep -q 'src-git istore' feeds.conf.default || echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+grep -q 'src-git istore' feeds.conf || echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf
+./scripts/feeds update istore
+./scripts/feeds install istore
+# （2026-10-07 起弃用整仓 clone 到 package/ 的方式：luci.mk 版包在实际构建中被 defconfig 静默丢弃）
 
 ./scripts/feeds update -i -a
 ./scripts/feeds install -a
