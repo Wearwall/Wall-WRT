@@ -773,6 +773,16 @@ for flavor in "${flavors[@]}"; do
   set -e
   if [ "$status" -ne 0 ]; then
     printf 'ERROR: %s failed (exit %s); see %s\n' "$flavor" "$status" "$LOG_ROOT/$flavor.log" >&2
+    # Keep the actual error visible on the public run summary even when the
+    # viewer cannot download the full log artifact or use the Actions API.
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      {
+        printf '\n### %s build failed (exit %s)\n\n' "$flavor" "$status"
+        printf '```text\n'
+        tail -c 16000 "$LOG_ROOT/$flavor.log" | tr '\r' '\n' | tail -n 60
+        printf '\n```\n'
+      } >> "$GITHUB_STEP_SUMMARY"
+    fi
     failures=$((failures + 1))
   fi
 done
