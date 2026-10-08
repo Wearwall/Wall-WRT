@@ -560,10 +560,20 @@ exit 0
 ### .github/workflows/build.yml
 
 ```yaml
-name: Athena firmware
+name: 编译雅典娜固件（LibWrt / ImmortalWrt）
 
 on:
   workflow_dispatch:
+    inputs:
+      flavor:
+        description: 选择编译分支
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - libwrt
+          - immortalwrt
   push:
     branches: [master]
     paths:
@@ -587,14 +597,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: 静态检查 / 工作流入口
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Static checks
+        run: |
+          for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script"; done
+          shellcheck build.sh scripts/*.sh
+          shellcheck -s sh files/etc/uci-defaults/*
+          python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
   build:
     name: Athena / ${{ matrix.flavor }}
+    needs: validate
+    # Register the entry via a real push run, without starting a firmware build.
+    # Normal pushes, daily schedules and manual dispatches still compile.
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[workflow-register]')
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        flavor: [libwrt, immortalwrt]
+        flavor: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.flavor != 'all' && format('["{0}"]', inputs.flavor) || '["libwrt","immortalwrt"]') }}
     env:
       FLAVOR: ${{ matrix.flavor }}
       TZ: Asia/Shanghai
@@ -609,13 +638,6 @@ jobs:
             python3 python3-setuptools python3-dev swig wget curl file \
             zstd ccache shellcheck
           df -h .
-      - name: Static checks
-        run: |
-          bash -n build.sh
-          for script in scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script"; done
-          shellcheck build.sh scripts/*.sh
-          shellcheck -s sh files/etc/uci-defaults/*
-          python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
       - name: Sync upstream and feeds (no compilation)
         run: bash scripts/sync-upstream.sh
       - name: Cache identity

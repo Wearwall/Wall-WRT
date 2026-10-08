@@ -46,7 +46,11 @@ git add upstream-lock.txt
 
 仓库内初始 lock 是本次只读查询的远端分支 HEAD 快照，注释明确标识；第一次 sync 会替换为本地同步后实际 source/feed HEAD。插件完整 SHA 单独写入每条线的 `third-party-sources.txt`，它与 lock 一起随产物保存。日志在 `logs/<flavor>.log`。
 
-Actions 运行 **Athena firmware**：手动、master 构建代码 push、每天 03:17 UTC 触发；两条线独立 matrix，`fail-fast: false`。成功固件上传为 `Athena-<flavor>-<日期>-<run_id>`，失败也保留日志。不会自动发布 Release 或改写仓库。每日更新能检测破坏，不能自动修复上游破坏；可从仍保留的成功 artifact 取回此前版本。
+Actions 运行 **编译雅典娜固件（LibWrt / ImmortalWrt）**：手动、master 构建代码 push、每天 03:17 UTC 触发；两条线独立 matrix，`fail-fast: false`。成功固件上传为 `Athena-<flavor>-<日期>-<run_id>`，失败也保留日志。不会自动发布 Release 或改写仓库。每日更新能检测破坏，不能自动修复上游破坏；可从仍保留的成功 artifact 取回此前版本。
+
+手动启动入口：[打开固件工作流](https://github.com/Wearwall/Wall-WRT/actions/workflows/build.yml)。点击 **Run workflow**，选择 `master`，再选择 `flavor`：`all` 编译双线、`libwrt` / `immortalwrt` 只编译对应线，然后点击绿色启动按钮。若 fork 的 Actions 尚未启用，先在 Actions 页面启用；如果没有 Run workflow 按钮，需使用有仓库写权限的账号。
+
+首次入口注册提交使用 `[workflow-register]` 标记：它会运行静态检查 job，并跳过固件 build job。该标记由本仓 workflow 判断，不是 GitHub 的 `[skip ci]`；后续普通 push、schedule 和手动启动仍正常编译。此前带 `[skip ci]` 的提交没有通过 push 产生运行，本次入口修复不启动完整固件编译。
 
 缓存 `dl/`、`tmp/`、ccache。tmp 按源码/feed SHA、配置与日期隔离，插件替换后重新生成设备/包元数据。不会恢复 staging_dir 或伪造 stamp。缓存不能省略首次工具链编译，**不保证一小时完成**；Actions 上限 360 分钟，首次下载、磁盘容量和大量 Go/Rust 包可能成为瓶颈。
 
@@ -165,4 +169,4 @@ docker compose config --quiet
 # 编译入口 patch 后，应针对实际发现的 config_generate 检查旧 LAN 地址。
 ```
 
-本次真实输出、逐文件改动表与要求交付文件的完整内容见 [改造交付记录](docs/implementation-report.md)。环境已沿用 cloud-environment-onboarding:setup 配置静态工具；没有创建工作树或执行固件编译；源码已同步至 GitHub，后续修复也通过带 [skip ci] 的提交同步，避免自动触发推送编译。
+本次真实输出、逐文件改动表与要求交付文件的完整内容见 [改造交付记录](docs/implementation-report.md)。环境已沿用 cloud-environment-onboarding:setup 配置静态工具；没有创建工作树或执行固件编译；源码已同步至 GitHub，后续修复一般通过带 [skip ci] 的提交同步；工作流入口注册提交使用 [workflow-register]，仅运行静态检查。
