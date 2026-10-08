@@ -336,5 +336,78 @@ fi
 # 清理 PassWall 的 chnlist 规则文件
 # echo "baidu.com"  > package/luci-app-passwall/luci-app-passwall/root/usr/share/passwall/rules/chnlist
 
+# ===================== 用户指定插件：第三方源码 clone =====================
+# 用 Wall-WRT 自带 package_enabled 判断（读 General.config / IPQ60XX.config），只在勾选时才 clone
+
+if package_enabled tailscale; then
+  # 用 whzhni1 的 tailscale 1.102.5（每日 bot 自动跟版）整体替换官方 feed 的 1.98.3（后者在 Go 1.27 下编译失败）
+  # 包名同为 tailscale，General.config 的 CONFIG_PACKAGE_tailscale=y 直接生效
+  # 备选守护进程源：https://github.com/GuNanOvO/openwrt-tailscale（同为 1.102.5，保留内置 SSH，但其 package/ 目录多一层：mv package/openwrt-tailscale/package/tailscale ...）
+  rm -rf feeds/packages/net/tailscale package/tailscale
+  clone_repository https://github.com/whzhni1/luci-app-tailscale main package/whzhni1-tailscale
+  mv package/whzhni1-tailscale/tailscale feeds/packages/net/tailscale
+  rm -rf package/whzhni1-tailscale
+fi
+
+if package_enabled luci-app-tailscale-community; then
+  # 前端：Tokisaki community 版。官方 luci feed 已有同名包，必须先删 feed 副本，否则被遮蔽编成 feed 版
+  rm -rf feeds/luci/applications/luci-app-tailscale-community
+  clone_repository https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community master package/luci-app-tailscale-community
+fi
+
+if package_enabled luci-app-adguardhome; then
+  # AdGuardHome 的 LuCI 管理页（核心二进制刷机后在 LuCI 内「下载核心」拉取，不编进固件）
+  clone_repository https://github.com/rufengsuixing/luci-app-adguardhome master package/luci-app-adguardhome
+fi
+
+if package_enabled luci-app-re-homeproxy; then
+  clone_repository https://github.com/1andrevich/homeproxy-hiddify master package/luci-app-re-homeproxy
+fi
+
+if package_enabled luci-app-momo momo; then
+  clone_repository https://github.com/nikkinikki-org/OpenWrt-momo main package/OpenWrt-momo
+fi
+
+if package_enabled luci-app-clashoo clashoo; then
+  clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
+fi
+
+if package_enabled luci-app-nikki-rs nikki-rs; then
+  clone_repository https://github.com/CHKayanami/OpenWrt-nikki-rs main package/OpenWrt-nikki-rs
+fi
+
+if package_enabled luci-app-fchomo mihomo; then
+  clone_repository https://github.com/fcshark-org/openwrt-fchomo master package/openwrt-fchomo
+fi
+
+if package_enabled luci-app-dockerman; then
+  # 经典版 dockerman（主菜单顶级「容器」入口，含 Container/Images/Networks/Volumes）。
+  # 官方 luci feed 已有同名 JS 版（长在「服务」菜单下），必须先删 feed 副本，否则会被遮蔽编成 JS 版。
+  rm -rf feeds/luci/applications/luci-app-dockerman
+  clone_repository https://github.com/lisaac/luci-app-dockerman master package/lisaac-dockerman
+  # ⚠️ luci-lib-docker 已被官方 luci feed 移除、也不在 dockerman 同仓，必须单独 clone，否则 dockerman 依赖无法满足，
+  #    镜像打包阶段报 "luci-lib-docker (no such package)" 直接拖垮 world（2026-10-07 第三次构建实测）。
+  #    其仓库 Makefile 在 collections/luci-lib-docker/ 下，这里 mv 成标准布局放到 package/luci-lib-docker/。
+  rm -rf package/luci-lib-docker package/luci-lib-docker-tmp
+  clone_repository https://github.com/lisaac/luci-lib-docker master package/luci-lib-docker-tmp
+  mv package/luci-lib-docker-tmp/collections/luci-lib-docker package/luci-lib-docker
+  rm -rf package/luci-lib-docker-tmp
+  # ⚠️ APK 包格式（OpenWrt 25.12/SNAPSHOT）版本号不允许 v 前缀：luci-lib-docker PKG_VERSION:=v0.3.4 与
+  #    dockerman PKG_VERSION:=v0.5.26 都带 v，打包阶段会报 "package version is invalid" (Error 99)。
+  #    构建前把两者 v 前缀都去掉，包名变 0.3.4-r1 / 0.5.26-r1.apk 即合法。
+  sed -i 's/^PKG_VERSION:=v0.3.4/PKG_VERSION:=0.3.4/' package/luci-lib-docker/Makefile
+  sed -i 's/^PKG_VERSION:=v0.5.26/PKG_VERSION:=0.5.26/' package/lisaac-dockerman/applications/luci-app-dockerman/Makefile
+  # 重命名主菜单：Docker → 容器（仅改顶级菜单标题字符串，子菜单 Containers/Images 等不受影响）
+  sed -i 's/_("Docker")/_("容器")/g' package/lisaac-dockerman/applications/luci-app-dockerman/luasrc/controller/dockerman.lua
+fi
+
+# iStore 应用商店：官方推荐的固件集成方式——把 istore feed 追加进 feeds.conf.default，
+# 由下面紧跟着的 feeds update / install 解析依赖（luci-app-store + luci-lib-taskd + taskd）。
+# （2026-10-07 起弃用整仓 clone 到 package/ 的方式：luci.mk 版包在实际构建中被 defconfig 静默丢弃）
+grep -q 'src-git istore' feeds.conf.default || echo 'src-git istore https://github.com/linkease/istore;main' >> feeds.conf.default
+
 ./scripts/feeds update -i -a
 ./scripts/feeds install -a
+
+# 重命名主菜单：iStore → 商店
+sed -i 's/_("iStore")/_("商店")/g' feeds/istore/luci/luci-app-store/luasrc/controller/store.lua 2>/dev/null || true
