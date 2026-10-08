@@ -62,7 +62,13 @@ rm -rf package/feeds
 
 # Preserve the template's Go source. There is no effective CONFIG_GOLANG_VERSION_1_26 switch.
 clone_repository https://github.com/laipeng668/packages master package/wall-golang-source
-[ -f package/wall-golang-source/lang/golang/Makefile ] || { echo 'Error: Go repository layout changed' >&2; exit 1; }
+# This is a bundle: compiler package Makefiles live below golang/ and
+# golang1.xx/, while the shared package include lives directly in lang/golang.
+if [ ! -f package/wall-golang-source/lang/golang/golang-package.mk ] || \
+  [ ! -f package/wall-golang-source/lang/golang/golang/Makefile ]; then
+    echo 'Error: Go repository layout changed (missing shared include/compiler package)' >&2
+    exit 1
+fi
 rm -rf feeds/packages/lang/golang
 mv package/wall-golang-source/lang/golang feeds/packages/lang/golang
 rm -rf package/wall-golang-source
