@@ -1,0 +1,76 @@
+Static validation only; no build / make / image generation executed in this refactor.
+
+Shell tools
+$ shellcheck --version; /workspace/.wall-wrt-env/bin/actionlint -version
+ShellCheck - shell script analysis tool
+version: 0.10.0
+license: GNU General Public License, version 3
+website: https://www.shellcheck.net
+1.7.7
+installed by downloading from release page
+built with go1.23.4 compiler for linux/amd64
+[exit 0]
+
+Requested syntax command
+$ bash -n build.sh && bash -n scripts/*.sh
+[exit 0]
+
+Every shell file, including router defaults
+$ for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script" || exit; done
+[exit 0]
+
+ShellCheck
+$ shellcheck build.sh scripts/*.sh
+[exit 0]
+
+Router POSIX shell check
+$ shellcheck -s sh files/etc/uci-defaults/*
+[exit 0]
+
+JSON syntax
+$ python3 -c 'import json,pathlib; paths=list(pathlib.Path("files").rglob("*.json")); [json.loads(p.read_text()) for p in paths]; print("JSON files checked:", len(paths))'
+JSON files checked: 0
+[exit 0]
+
+Python source syntax
+$ python3 -c 'import ast,pathlib; paths=list(pathlib.Path("scripts").glob("*.py")); [ast.parse(p.read_text(), filename=str(p)) for p in paths]; print("Python AST files checked:", len(paths))'
+Python AST files checked: 1
+[exit 0]
+
+Actions workflow
+$ /workspace/.wall-wrt-env/bin/actionlint .github/workflows/build.yml
+[exit 0]
+
+Docker Compose syntax only
+$ docker compose config --quiet
+[exit 0]
+
+Old LAN string lookup in build code/overlay
+$ grep -rn '192.168.1.1' build.sh configs scripts files
+scripts/firmware-config.py:133:        changed = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
+scripts/firmware-config.py:137:    if any("192.168.1.1" in path.read_text() for path in paths):
+[exit 0]
+
+Old LAN default lookup in overlay
+$ grep -rn '192.168.1.1' files
+[exit 1]
+
+Git whitespace
+$ git diff --check
+[exit 0]
+
+Stable upstream supports Athena?
+$ git -C /workspace/.wall-wrt-env/diagnosis/immortal-inspect grep -n 'jdcloud_re-cs-02' HEAD -- target/linux/qualcommax
+[exit 1]
+
+Master upstream device support (read-only)
+$ git -C /workspace/.wall-wrt-env/diagnosis/immortal-inspect grep -n 'jdcloud_re-cs-02' FETCH_HEAD -- target/linux/qualcommax/image/ipq60xx.mk
+FETCH_HEAD:target/linux/qualcommax/image/ipq60xx.mk:109:define Device/jdcloud_re-cs-02
+FETCH_HEAD:target/linux/qualcommax/image/ipq60xx.mk:117:	DEVICE_PACKAGES := ath11k-firmware-qcn9074 ipq-wifi-jdcloud_re-cs-02 kmod-ath11k-pci
+FETCH_HEAD:target/linux/qualcommax/image/ipq60xx.mk:119:TARGET_DEVICES += jdcloud_re-cs-02
+[exit 0]
+
+Actual LibWrt Kconfig spelling (read-only)
+$ grep -n '^config TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02$' /workspace/.wall-wrt-env/diagnosis/openwrt/tmp/.config-target.in
+79198:config TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02
+[exit 0]

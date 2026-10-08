@@ -1,0 +1,101 @@
+name: Athena firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'build.sh'
+      - 'configs/**'
+      - 'scripts/**'
+      - 'files/**'
+      - '.github/workflows/build.yml'
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: athena-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Athena / ${{ matrix.flavor }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [libwrt, immortalwrt]
+    env:
+      FLAVOR: ${{ matrix.flavor }}
+      TZ: Asia/Shanghai
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang flex bison gawk gettext git rsync unzip \
+            libncurses-dev libssl-dev libelf-dev zlib1g-dev \
+            python3 python3-setuptools python3-dev swig wget curl file \
+            zstd ccache shellcheck
+          df -h .
+      - name: Static checks
+        run: |
+          bash -n build.sh
+          for script in scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script"; done
+          shellcheck build.sh scripts/*.sh
+          shellcheck -s sh files/etc/uci-defaults/*
+          python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
+      - name: Sync upstream and feeds (no compilation)
+        run: bash scripts/sync-upstream.sh
+      - name: Cache identity
+        id: identity
+        run: |
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          echo "lock=$(sha256sum upstream-lock.txt | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Download cache
+        uses: actions/cache@v4
+        with:
+          path: sources/${{ matrix.flavor }}/dl
+          key: dl-${{ runner.os }}-${{ matrix.flavor }}-${{ steps.identity.outputs.lock }}
+          restore-keys: dl-${{ runner.os }}-${{ matrix.flavor }}-
+      - name: Temporary metadata cache
+        uses: actions/cache@v4
+        with:
+          path: sources/${{ matrix.flavor }}/tmp
+          key: tmp-${{ runner.os }}-${{ matrix.flavor }}-${{ steps.identity.outputs.lock }}-${{ steps.identity.outputs.date }}-${{ hashFiles('configs/**', 'scripts/**', 'build.sh') }}
+      - name: Compiler cache
+        uses: actions/cache@v4
+        with:
+          path: sources/${{ matrix.flavor }}/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.flavor }}-${{ steps.identity.outputs.lock }}-${{ github.run_id }}
+          restore-keys: ccache-${{ runner.os }}-${{ matrix.flavor }}-
+      - name: Build Athena only
+        run: bash build.sh
+      - name: Firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: Athena-${{ matrix.flavor }}-${{ steps.identity.outputs.date }}-${{ github.run_id }}
+          path: artifacts/${{ matrix.flavor }}/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Logs and upstream revisions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Athena-${{ matrix.flavor }}-logs-${{ github.run_id }}
+          path: |
+            logs/${{ matrix.flavor }}.log
+            upstream-lock.txt
+            sources/${{ matrix.flavor }}/config-audit.txt
+            sources/${{ matrix.flavor }}/third-party-sources.txt
+            sources/${{ matrix.flavor }}/i18n-map.txt
+          if-no-files-found: warn

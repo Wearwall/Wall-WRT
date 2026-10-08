@@ -1,0 +1,19 @@
+#!/bin/sh
+# Existing sysupgrade configuration has no overlay marker and is preserved.
+grep -q '^# WALL_ATHENA_LAN_OVERLAY$' /etc/config/network || exit 0
+backup="$(mktemp /tmp/athena-network.XXXXXX)" || exit 1
+cp /etc/config/network "$backup" || exit 1
+rm /etc/config/network
+if ! /bin/config_generate || ! uci -q get network.lan >/dev/null; then
+        cp "$backup" /etc/config/network
+        rm -f "$backup"
+        exit 1
+fi
+# UCI merge replaces these LAN options while retaining the generated device.
+if uci import -m network < "$backup" && uci commit network; then
+        rm -f "$backup"
+        exit 0
+fi
+cp "$backup" /etc/config/network
+rm -f "$backup"
+exit 1

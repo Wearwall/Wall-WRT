@@ -1,0 +1,83 @@
+# Container: classic lisaac Lua UI; keep its separate library and compatibility layer.
+CONFIG_PACKAGE_dockerd=y
+CONFIG_PACKAGE_docker=y
+CONFIG_PACKAGE_docker-compose=y
+CONFIG_PACKAGE_luci-app-dockerman=y
+CONFIG_PACKAGE_luci-lib-docker=y
+CONFIG_PACKAGE_luci-compat=y
+CONFIG_PACKAGE_luci-lua-runtime=y
+CONFIG_PACKAGE_ttyd=y
+CONFIG_PACKAGE_luci-app-ttyd=y
+CONFIG_PACKAGE_kmod-veth=y
+CONFIG_PACKAGE_kmod-br-netfilter=y
+
+# Store: official iStore feed; xz-utils satisfies tar's xz dependency.
+CONFIG_PACKAGE_luci-app-store=y
+CONFIG_PACKAGE_luci-lib-taskd=y
+CONFIG_PACKAGE_taskd=y
+CONFIG_PACKAGE_xz-utils=y
+
+# VPN: enable one transparent proxy at runtime.
+CONFIG_PACKAGE_luci-app-re-homeproxy=y
+CONFIG_PACKAGE_momo=y
+CONFIG_PACKAGE_luci-app-momo=y
+CONFIG_PACKAGE_clashoo=y
+CONFIG_PACKAGE_luci-app-clashoo=y
+CONFIG_PACKAGE_nikki-rs=y
+CONFIG_PACKAGE_luci-app-nikki-rs=y
+CONFIG_PACKAGE_mihomo=y
+CONFIG_PACKAGE_luci-app-fchomo=y
+CONFIG_PACKAGE_luci-app-openclash=y
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_luci-app-passwall2=y
+CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
+# CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy is not set
+CONFIG_PACKAGE_dnsmasq-full=y
+# CONFIG_PACKAGE_dnsmasq is not set
+
+# OpenClash's explicit dependencies; other proxy dependencies come from Makefiles.
+CONFIG_PACKAGE_ipset=y
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_ruby=y
+CONFIG_PACKAGE_ruby-yaml=y
+CONFIG_PACKAGE_kmod-ipt-nat=y
+CONFIG_PACKAGE_iptables-mod-tproxy=y
+CONFIG_PACKAGE_iptables-mod-extra=y
+CONFIG_PACKAGE_kmod-inet-diag=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_PACKAGE_bash=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_unzip=y
+
+# Services: Tailscale daemon + community UI must be disabled together.
+CONFIG_PACKAGE_tailscale=y
+CONFIG_PACKAGE_luci-app-tailscale-community=y
+CONFIG_PACKAGE_cloudflared=y
+CONFIG_PACKAGE_luci-app-cloudflared=y
+# Intentional alternatives: defconfig keeps the symbol this feed defines.
+CONFIG_PACKAGE_luci-i18n-cloudflared-zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-cloudflared-zh-cn=y
+CONFIG_PACKAGE_luci-app-adguardhome=y
+# AdGuardHome core is downloaded in its UI; no official core or acdn replacement.
+# CONFIG_PACKAGE_adguardhome is not set
+# CONFIG_PACKAGE_luci-app-acdn is not set
+# CONFIG_PACKAGE_luci-app-homeproxy is not set
+# CONFIG_PACKAGE_luci-app-nikki is not set
+
+# Preserve useful template defaults without pulling unrelated custom repositories.
+CONFIG_PACKAGE_luci=y
+CONFIG_PACKAGE_luci-app-ddns=y
+CONFIG_PACKAGE_ddns-scripts-cloudflare=y
+CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-app-wol=y
+CONFIG_PACKAGE_luci-app-samba4=y
+CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-app-cpufreq=y
+CONFIG_PACKAGE_luci-proto-wireguard=y
+CONFIG_PACKAGE_luci-app-watchcat=y
+CONFIG_PACKAGE_htop=y
+CONFIG_PACKAGE_nano-full=y
+CONFIG_PACKAGE_fdisk=y
+CONFIG_PACKAGE_fstrim=y
+CONFIG_PACKAGE_openssh-sftp-server=y

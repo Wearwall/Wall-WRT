@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""Source-only configuration, revision records and Athena artifact checks."""
+import argparse
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+
+def git(directory, *args):
+    return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
+
+
+def assignments(path):
+    values = {}
+    for line in path.read_text().splitlines():
+        line = re.sub(r"\s+#.*$", "", line).strip()
+        match = re.fullmatch(r"(CONFIG_[\w-]+)=(.*)", line)
+        disabled = re.fullmatch(r"# (CONFIG_[\w-]+) is not set", line)
+        if match:
+            values[match[1]] = match[2]
+        elif disabled:
+            values[disabled[1]] = "n"
+    return values
+
+
+def selected_devices(values):
+    return [key for key, value in values.items()
+            if "_DEVICE_" in key and key.startswith("CONFIG_TARGET_")
+            and value in ("y", "m")]
+
+
+def is_athena(key):
+    return key.endswith("_DEVICE_jdcloud_re_cs_02") or key.endswith("_DEVICE_jdcloud_re-cs-02")
+
+
+def select_device(config, metadata):
+    available = set(re.findall(r"^config (TARGET_qualcommax_ipq60xx_DEVICE_\S+)$",
+                               metadata.read_text(), re.M))
+    candidates = ["TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re_cs_02",
+                  "TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02"]
+    symbol = next((key for key in candidates if key in available), None)
+    if not symbol:
+        raise ValueError("Upstream has no Athena RE-CS-02 profile. Do not compile another device. "
+                         "Official ImmortalWrt openwrt-25.12 currently needs a reviewed device port.")
+    lines = [line for line in config.read_text().splitlines()
+             if not re.match(r"(?:# )?CONFIG_TARGET_.*_DEVICE_", line)
+             and not re.match(r"(?:# )?CONFIG_TARGET_(?:MULTI_PROFILE|ALL_PROFILES|PER_DEVICE_ROOTFS)\b", line)]
+    lines += [f"CONFIG_{symbol}=y", "# CONFIG_TARGET_MULTI_PROFILE is not set",
+              "# CONFIG_TARGET_ALL_PROFILES is not set", "# CONFIG_TARGET_PER_DEVICE_ROOTFS is not set"]
+    config.write_text("\n".join(lines) + "\n")
+    print(f"Athena profile resolved from upstream metadata: CONFIG_{symbol}=y")
+
+
+def audit(config, packages, flavor):
+    values = assignments(config)
+    expected = assignments(packages)
+    warnings = [f"{key}=y (missing or not built-in)" for key, value in expected.items()
+                if key.startswith("CONFIG_PACKAGE_") and value == "y" and values.get(key) != "y"]
+    devices = selected_devices(values)
+    if len(devices) != 1 or not all(is_athena(key) for key in devices):
+        warnings.append(f"Selected devices must be Athena only: {devices}")
+    if values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
+        warnings.append("Multiple-device mode is still enabled")
+    for key in ("CONFIG_KERNEL_CGROUPS", "CONFIG_KERNEL_CGROUP_FREEZER",
+                "CONFIG_DOCKER_CGROUP_OPTIONS", "CONFIG_PACKAGE_kmod-br-netfilter"):
+        if values.get(key) != "y":
+            warnings.append(f"Docker prerequisite missing: {key}")
+    if values.get("CONFIG_KERNEL_BRIDGE_NETFILTER") != "y":
+        warnings.append("CONFIG_KERNEL_BRIDGE_NETFILTER is absent; check kernel config via kmod-br-netfilter")
+    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
+        warnings.append("LibWrt WiFi NSS offload requires CONFIG_NSS_FIRMWARE_VERSION_11_4=y")
+    if flavor == "immortalwrt" and any(key.startswith("CONFIG_NSS_FIRMWARE_VERSION_") and value == "y"
+                                     for key, value in values.items()):
+        warnings.append("ImmortalWrt configuration unexpectedly selects NSS firmware")
+    if warnings:
+        print("\n" + "!" * 72 + "\nWARNING: FINAL CONFIGURATION DIFFERS FROM REQUEST")
+        print("\n".join(f"  - {warning}" for warning in warnings))
+        print("Compilation continues; review this log before flashing.\n" + "!" * 72)
+        print("::warning::Final configuration differs from request; see config-audit.txt")
+    else:
+        print("Configuration audit passed: Athena only; expected packages built-in.")
+
+
+def i18n(source):
+    config = source / ".config"
+    active = assignments(config)
+    generated = set()
+    seen = set()
+    alias_file = source / "feeds/luci/luci.mk"
+    aliases = dict(re.findall(r"^LUCI_LC_ALIAS\.([\w-]+)\s*:?=\s*([\w-]+)",
+                             alias_file.read_text() if alias_file.exists() else "", re.M))
+    rows = ["Package\tPO directory\tGenerated i18n package"]
+    for base in (source / "feeds", source / "package"):
+        if not base.exists():
+            continue
+        for makefile in sorted(base.rglob("Makefile")):
+            app = makefile.parent
+            if not app.name.startswith("luci-app-") or app.resolve() in seen:
+                continue
+            seen.add(app.resolve())
+            text = makefile.read_text(errors="replace")
+            match = re.search(r"^PKG_NAME\s*[:?+]?=\s*(luci-app-[\w-]+)\s*$", text, re.M)
+            name = match[1] if match else app.name  # luci.mk defaults PKG_NAME to directory name.
+            if active.get(f"CONFIG_PACKAGE_{name}") != "y":
+                continue
+            po = app / "po"
+            for lang in ("zh-cn", "zh_Hans"):
+                if not (po / lang).is_dir() or not any((po / lang).glob("*.po")):
+                    continue
+                # First write the requested po-based candidate; when luci.mk
+                # aliases it, also write that actual package symbol. defconfig
+                # removes the undefined alternative without losing translation.
+                candidate = f"luci-i18n-{name.removeprefix('luci-app-')}-{lang}"
+                actual = f"luci-i18n-{name.removeprefix('luci-app-')}-{aliases.get(lang, lang)}"
+                generated.update((f"CONFIG_PACKAGE_{candidate}=y", f"CONFIG_PACKAGE_{actual}=y"))
+                rows.append(f"{name}\t{lang}\t{actual}" + (f" (candidate {candidate})" if candidate != actual else ""))
+    lines = config.read_text().splitlines()
+    existing = set(lines)
+    config.write_text("\n".join(lines + sorted(generated - existing)) + "\n")
+    (source / "i18n-map.txt").write_text("\n".join(rows) + "\n")
+    print("\n".join(rows))
+
+
+def network_patch(source):
+    paths = [path for path in source.rglob("config_generate") if path.is_file()]
+    if not paths:
+        raise ValueError("No config_generate found; inspect upstream base-files layout")
+    for path in paths:
+        text = path.read_text()
+        changed = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
+        if changed != text:
+            path.write_text(changed)
+        print(f"Default LAN source inspected/patched: {path.relative_to(source)}")
+    if any("192.168.1.1" in path.read_text() for path in paths):
+        raise ValueError("Old LAN default remains in config_generate")
+
+
+def lock(source, destination, flavor):
+    import fcntl  # Only source-sync locking needs Unix; syntax checks work on macOS too.
+    records = [f"{flavor}\tsource\t{git(source, 'remote', 'get-url', 'origin')}\t"
+               f"{git(source, 'rev-parse', 'HEAD')}"]
+    print(f"{flavor}: source {git(source, 'rev-parse', '--short', 'HEAD')}")
+    for feed in sorted((source / "feeds").iterdir()):
+        if not feed.is_dir() or not (feed / ".git").exists():
+            continue
+        sha = git(feed, "rev-parse", "HEAD")
+        records.append(f"{flavor}\tfeed:{feed.name}\t{git(feed, 'remote', 'get-url', 'origin')}\t{sha}")
+        print(f"{flavor}: feed {feed.name} {sha[:12]}")
+    # Two CI matrix jobs use separate files; local all mode shares this lock.
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("a+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        handle.seek(0)
+        retained = [line for line in handle.read().splitlines()
+                    if line and not line.startswith("#") and not line.startswith(flavor + "\t")]
+        handle.seek(0)
+        handle.truncate()
+        handle.write("# flavor\tcomponent\trepository\tcommit (observed checkout HEAD; not version pins)\n")
+        handle.write("\n".join(sorted(retained + records)) + "\n")
+
+
+def artifacts(source, output, flavor):
+    values = assignments(source / ".config")
+    devices = selected_devices(values)
+    if len(devices) != 1 or not is_athena(devices[0]) or values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
+        raise ValueError("Refusing artifacts: final configuration is not Athena only")
+    if flavor == "libwrt" and values.get("CONFIG_NSS_FIRMWARE_VERSION_11_4") != "y":
+        raise ValueError("Refusing LibWrt artifacts without NSS firmware 11.4")
+    if values.get("CONFIG_TARGET_BOARD") != '"qualcommax"' or values.get("CONFIG_TARGET_SUBTARGET") != '"ipq60xx"':
+        raise ValueError("Refusing artifacts: target is not qualcommax/ipq60xx")
+    target = source / "bin/targets/qualcommax/ipq60xx"
+    images = [path for path in target.glob("*") if path.is_file()
+              and "jdcloud_re-cs-02" in path.name and path.suffix in (".bin", ".itb", ".img", ".gz")]
+    other = [path.name for path in target.glob("*") if path.is_file()
+             and path.suffix in (".bin", ".itb", ".img", ".gz") and "jdcloud_re-cs-02" not in path.name]
+    if other:
+        raise ValueError(f"Unexpected non-Athena images: {other}")
+    if not any("sysupgrade" in path.name and path.stat().st_size for path in images):
+        raise ValueError("No nonempty Athena sysupgrade image was generated")
+    if any(not path.stat().st_size for path in images):
+        raise ValueError("An Athena image is empty")
+    manifests = list(target.glob("*.manifest"))
+    if not manifests:
+        raise ValueError("No firmware manifest was generated")
+    installed = {line.split()[0] for path in manifests for line in path.read_text().splitlines() if line.strip()}
+    missing = [key.removeprefix("CONFIG_PACKAGE_") for key, value in values.items()
+               if value == "y" and key.startswith("CONFIG_PACKAGE_luci-app-") and key.removeprefix("CONFIG_PACKAGE_") not in installed]
+    if missing:
+        print(f"::warning::LuCI packages missing from installed manifest: {', '.join(missing)}")
+    output.mkdir(parents=True, exist_ok=True)
+    for path in images + manifests + list(target.glob("*.buildinfo")) + list(target.glob("profiles.json")):
+        shutil.copy2(path, output / path.name)
+    shutil.copy2(source / ".config", output / "firmware.config")
+    shutil.copy2(source / "i18n-map.txt", output / "i18n-map.txt")
+    (output / "build-info.json").write_text(json.dumps({"flavor": flavor, "device": "jdcloud_re-cs-02",
+                                                      "source_commit": git(source, "rev-parse", "HEAD")}, indent=2) + "\n")
+    print(f"Athena images collected: {output}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("operation", choices=("select-device", "audit", "i18n", "network", "lock", "artifacts"))
+    parser.add_argument("paths", nargs="+")
+    args = parser.parse_args()
+    functions = {"select-device": select_device, "audit": audit, "i18n": i18n,
+                 "network": network_patch, "lock": lock, "artifacts": artifacts}
+    converted = [Path(value) if index < {"select-device": 2, "audit": 2, "i18n": 1,
+                                        "network": 1, "lock": 2, "artifacts": 2}[args.operation] else value
+                 for index, value in enumerate(args.paths)]
+    try:
+        functions[args.operation](*converted)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

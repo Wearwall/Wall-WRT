@@ -1,0 +1,12 @@
+services:
+  firmware:
+    build:
+      context: .
+      args:
+        BUILD_UID: ${BUILD_UID:-1000}
+        BUILD_GID: ${BUILD_GID:-1000}
+    environment:
+      FLAVOR: ${FLAVOR:-all}
+      JOBS: ${JOBS:-4}
+    volumes:
+      - .:/work

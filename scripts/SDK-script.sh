@@ -23,8 +23,8 @@ OPENLIST2_REPO="${OPENLIST2_REPO:-https://github.com/laipeng668/luci-app-openlis
 OPENLIST2_REF="${OPENLIST2_REF:-main}"
 LUCKY_REPO="${LUCKY_REPO:-https://github.com/gdy666/luci-app-lucky}"
 LUCKY_REF="${LUCKY_REF:-main}"
-OPENWRT_TARGET="${OPENWRT_TARGET:-x86}"
-OPENWRT_SUBTARGET="${OPENWRT_SUBTARGET:-64}"
+OPENWRT_TARGET="${OPENWRT_TARGET:-qualcommax}"
+OPENWRT_SUBTARGET="${OPENWRT_SUBTARGET:-ipq60xx}"
 OPENWRT_TARGET_PROFILE="${OPENWRT_TARGET_PROFILE:-}"
 OPENWRT_DOWNLOADS_BASE_URL="${OPENWRT_DOWNLOADS_BASE_URL:-https://downloads.openwrt.org}"
 OPENWRT_SDK_VERSION="${OPENWRT_SDK_VERSION:-${SDK_VERSION:-main}}"
@@ -34,7 +34,7 @@ SDK_SHA256="${SDK_SHA256:-}"
 SDK_METADATA_REFRESH="${SDK_METADATA_REFRESH:-false}"
 SDK_METADATA_RETRY_COUNT="${SDK_METADATA_RETRY_COUNT:-3}"
 OPENWRT_SIGNING_KEY_FINGERPRINT="${OPENWRT_SIGNING_KEY_FINGERPRINT:-8A8BC12F46B836C0F9CDB36F1D53D1877742E911}"
-PACKAGE_CONFIG_FILES="${PACKAGE_CONFIG_FILES:-${CONFIG_FILES:-configs/x86-64.config configs/Packages.config}}"
+PACKAGE_CONFIG_FILES="${PACKAGE_CONFIG_FILES:-${CONFIG_FILES:-configs/Packages.config}}"
 unset CONFIG_FILES
 RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
 SDK_ROOT="${SDK_ROOT:-$RUNNER_TEMP/openwrt-sdk}"
@@ -145,18 +145,17 @@ load_inline_target_profile() {
   [ -n "$profile" ] || return 0
 
   case "$profile" in
-    rax3000m | cmcc-rax3000m | cmcc_rax3000m)
-      [ "$OPENWRT_TARGET" = mediatek ] && [ "$OPENWRT_SUBTARGET" = filogic ] ||
-        die "OPENWRT_TARGET_PROFILE=$profile requires OPENWRT_TARGET=mediatek and OPENWRT_SUBTARGET=filogic"
+    jdcloud_re-cs-02)
+      if [ "$OPENWRT_TARGET" != qualcommax ] || [ "$OPENWRT_SUBTARGET" != ipq60xx ]; then
+        die "Athena requires qualcommax/ipq60xx"
+      fi
       cat >> "$SDK_ROOT/.config" <<'EOF'
-CONFIG_TARGET_mediatek=y
-CONFIG_TARGET_mediatek_filogic=y
-CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y
+CONFIG_TARGET_qualcommax=y
+CONFIG_TARGET_qualcommax_ipq60xx=y
+CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re_cs_02=y
 EOF
       ;;
-    *)
-      die "Unsupported OPENWRT_TARGET_PROFILE: $profile (supported: rax3000m)"
-      ;;
+    *) die "Unsupported OPENWRT_TARGET_PROFILE: $profile (supported: jdcloud_re-cs-02)" ;;
   esac
 }
 
@@ -264,8 +263,9 @@ sdk_archive_name() {
   local archive_name
 
   archive_name="$(basename "$resolved_url")"
-  [ -n "$archive_name" ] && [ "$archive_name" != . ] && [ "$archive_name" != / ] ||
+  if [ -z "$archive_name" ] || [ "$archive_name" = . ] || [ "$archive_name" = / ]; then
     die "Unable to determine SDK archive name from URL: $1"
+  fi
   printf '%s\n' "$archive_name"
 }
 
@@ -1570,6 +1570,10 @@ prune_luci_translations
 log "Load package config"
 load_config_files
 make defconfig
+if [ -n "$OPENWRT_TARGET_PROFILE" ]; then
+  python3 "$WORKSPACE/scripts/firmware-config.py" select-device .config tmp/.config-target.in
+  make defconfig
+fi
 generate_compile_targets
 generate_artifact_filters
 
