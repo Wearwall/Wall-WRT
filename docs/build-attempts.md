@@ -4,7 +4,7 @@
 
 - [第一次实际构建](https://github.com/Wearwall/Wall-WRT/actions/runs/37794756878)：两条线在 Build Athena only 阶段失败，尚未产出固件。
 - 找到脚本中的确定性错误：lang/golang 是工具链集合目录，根目录没有 Makefile。真正的包位于 lang/golang/golang/Makefile，共用 include 为 golang-package.mk。错误校验会在任何包编译前退出。
-- 提交 beb52e9 修正 Go 目录校验；[第二次构建](https://github.com/Wearwall/Wall-WRT/actions/runs/37795451532) 已启动，记录时尚在运行，不能视为成功。
+- 提交 beb52e9 修正 Go 目录校验；[第二次构建](https://github.com/Wearwall/Wall-WRT/actions/runs/37795451532) 已成功结束，两条分支均生成并上传固件，耗时 2 小时 25 分 50 秒。
 - 提交 a967a14 将未来失败日志尾部写入 GitHub job summary，未另外触发构建。
 
 本地使用真实源码/feeds 完整执行两条线的插件准备、feeds install、设备配置重置、make defconfig、语言扫描与最终配置审计；两个准备命令退出码都为 0。以下仅证明配置阶段，不代表镜像或运行功能。
@@ -16,6 +16,6 @@
 
 两条线中 Dockerman、iStore、Tailscale 与 Re:HomeProxy 都为 =y；NSS/测试内核/512M/关闭 WiFi NSS 的分支要求也核对通过。未保留的 Cloudflared zh_Hans 候选是预期结果，实际 zh-cn 翻译已选择。CONFIG_KERNEL_BRIDGE_NETFILTER 候选未定义，kmod-br-netfilter 为 =y。仍需最终内核配置/manifest 验证。
 
-API 状态：GH_TOKEN 已安全注入，但 api.github.com 被当前环境网络策略拦截。只确认变量存在，未打印值。已将该域名追加到环境配置草稿，保存不代表当前网络生效；需要在环境设置保存/发布。公开 GitHub run/job 页面可读取任务状态，完整日志端点当前不可读取。
+此前 api.github.com 被环境网络策略拦截；2026-10-09 核对时 API 已可用，可读取构建结果及产物列表。但产物存储域名仍拒绝下载，因此补发任务在 GitHub runner 中直接下载已有产物、校验并发布。
 
-没有成功固件的结论；最终状态及 artifact 以第二次构建页面为准。
+已核对第二次构建状态为 success，产物包含 LibWrt 固件约 541 MB、ImmortalWrt 固件约 542 MB，以及两份独立日志。编译成功不代表实机运行验证。

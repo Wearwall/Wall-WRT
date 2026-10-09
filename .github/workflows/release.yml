@@ -1,0 +1,67 @@
+name: 发布已编译的雅典娜固件
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: 已上传固件的构建编号
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 已成功编译的 Actions run ID（无需重新编译）
+        required: true
+        default: '37795451532'
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN_ID: ${{ inputs.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source build
+        run: |
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > source-run.json
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('source-run.json'))
+          assert run['path'] == '.github/workflows/build.yml', 'Not a firmware build'
+          assert run['head_branch'] == 'master', 'Only publish master builds'
+          if os.environ['SOURCE_RUN_ID'] != os.environ['GITHUB_RUN_ID']:
+              assert run['conclusion'] == 'success', 'Source build did not succeed'
+          PY
+      - name: Download existing firmware
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: Athena-*
+          path: downloaded
+      - name: Verify checksums and add build date to filenames
+        run: python3 scripts/prepare-release.py downloaded release "$SOURCE_RUN_ID"
+      - name: Publish release
+        run: |
+          tag=$(cat release/tag.txt)
+          title=$(cat release/title.txt)
+          commit=$(python3 -c 'import json; print(json.load(open("source-run.json"))["head_sha"])')
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" \
+              --target "$commit" --title "$title" --notes-file release/notes.md
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

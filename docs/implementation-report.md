@@ -1,6 +1,6 @@
 # 雅典娜双分支改造交付记录
-本次工作目录 `/workspace/Wall-WRT`；仅执行静态检查及只读 Git 源码/分支核对，没有运行 make、固件编译、Docker 镜像构建或刷机。初次改造已同步到 GitHub；本次参考仓库的 ImmortalWrt 修复也以独立提交同步。云环境安装脚本与启动说明草稿已更新，保存不代表发布。
-**设备定义阻塞已修复：ImmortalWrt 改用参考 openwrt-ci-roc 的 laipeng668 fork / openwrt-25.12，选择测试内核和 NSS 12.5，并关闭 WiFi NSS；不再使用缺少雅典娜的官方稳定分支。设备树/镜像/网口/校准/eMMC 静态检查通过，完整编译与实机仍未验证。详见 [修复记录](immortalwrt-fix.md)。**
+本次工作目录 `/workspace/Wall-WRT`；初始改造仅执行静态检查，用户随后授权的真实 GitHub 双分支编译已成功，记录见 [实际构建记录](build-attempts.md)。没有刷机。初次改造已同步到 GitHub；本次参考仓库的 ImmortalWrt 修复也以独立提交同步。云环境安装脚本与启动说明草稿已更新，保存不代表发布。
+**设备定义阻塞已修复：ImmortalWrt 改用参考 openwrt-ci-roc 的 laipeng668 fork / openwrt-25.12，选择测试内核和 NSS 12.5，并关闭 WiFi NSS；不再使用缺少雅典娜的官方稳定分支。设备树/镜像/网口/校准/eMMC 静态检查通过，后续真实双分支编译已成功，实机仍未验证。详见 [修复记录](immortalwrt-fix.md)。**
 
 | 文件 | 操作 | 改动与原因 |
 |---|---|---|
@@ -588,6 +588,7 @@ on:
       - 'scripts/**'
       - 'files/**'
       - '.github/workflows/build.yml'
+      - '.github/workflows/release.yml'
   schedule:
     - cron: '17 3 * * *'
 
@@ -692,6 +693,15 @@ jobs:
             sources/${{ matrix.flavor }}/third-party-sources.txt
             sources/${{ matrix.flavor }}/i18n-map.txt
           if-no-files-found: warn
+  release:
+    name: 发布带日期的固件
+    needs: build
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      run_id: ${{ format('{0}', github.run_id) }}
 ```
 
 ## 核心入口的完整内容
@@ -1181,3 +1191,7 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 ```
+
+## 自动发布 Releases（2026-10-09）
+
+新增 `.github/workflows/release.yml` 与 `scripts/prepare-release.py`。固件构建成功后调用发布工作流；也可输入历史成功构建的 run ID 补发。仅发布 master 的固件构建，校验原始 SHA256SUMS，日期取自原始 artifact 名；每个镜像文件名包含分支、日期与构建编号，发布后重新生成对应 SHA256SUMS。
