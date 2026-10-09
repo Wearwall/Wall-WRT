@@ -16,6 +16,17 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def firmware_type(name):
+    for original, short in (
+        ('initramfs-uImage.itb', 'initramfs.itb'),
+        ('squashfs-factory.bin', 'factory.bin'),
+        ('squashfs-sysupgrade.bin', 'sysupgrade.bin'),
+    ):
+        if name.endswith('jdcloud_re-cs-02-' + original):
+            return short
+    raise ValueError(f'Unknown firmware type: {name}')
+
+
 def prepare(root, output, run_id):
     if not re.fullmatch(r'[0-9]+', run_id):
         raise ValueError('Invalid build run ID')
@@ -49,11 +60,14 @@ def prepare(root, output, run_id):
         images = [path for path in files if path.suffix in ('.bin', '.itb', '.img', '.gz')]
         if not any('sysupgrade' in path.name and path.stat().st_size for path in images):
             raise ValueError('Missing sysupgrade firmware')
-        prefix = f'Athena-{flavor}-{date}-{run_id}'
+        prefix = f'JDCloud-Athena-{flavor}-{date}-{run_id}'
         for image in images:
             if 'jdcloud_re-cs-02' not in image.name or not image.stat().st_size:
                 raise ValueError('Unexpected firmware image')
-            shutil.copy2(image, assets / f'{prefix}-{image.name}')
+            destination = assets / f'{prefix}-{firmware_type(image.name)}'
+            if destination.exists():
+                raise ValueError(f'Duplicate firmware type: {destination.name}')
+            shutil.copy2(image, destination)
         with zipfile.ZipFile(assets / f'{prefix}-info.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
             for path in files:
                 if path not in images:
@@ -65,7 +79,7 @@ def prepare(root, output, run_id):
     date = folders[0][2]
     pretty_date = datetime.datetime.strptime(date, '%Y%m%d').date().isoformat()
     (output / 'tag.txt').write_text(f'athena-{date}-{run_id}\n')
-    (output / 'title.txt').write_text(f'雅典娜固件 {pretty_date} · 构建 {run_id}\n')
+    (output / 'title.txt').write_text(f'京东雅典娜AX6600 {pretty_date}\n')
     repo = os.environ.get('GITHUB_REPOSITORY', 'Wearwall/Wall-WRT')
     flavors = ', '.join(flavor for _, flavor, _ in folders)
     (output / 'notes.md').write_text(

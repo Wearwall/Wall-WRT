@@ -90,3 +90,7 @@ dmesg | grep -iE 'nss|ath11k'
 https://github.com/LiBwrt/LibWrt       ##上游WRT分支  
 https://github.com/fishand73/JDBoxFlashTool   ##刷机uBoot工具   
 https://github.com/laipeng668/openwrt-ci-roc   ##基于构建服务修改
+
+## Release 命名
+
+发布标题：`京东雅典娜AX6600 YYYY-MM-DD`。固件文件名：`JDCloud-Athena-<分支名>-YYYYMMDD-<构建编号>-<固件类型>`，类型为 `sysupgrade.bin`、`factory.bin` 或 `initramfs.itb`。资料包为同前缀的 `info.zip`，另附对应 SHA256SUMS。日期沿用原始编译日期；所有所选分支编译成功后自动发布，可通过发布工作流补发历史成功构建。
