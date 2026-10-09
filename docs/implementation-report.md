@@ -244,6 +244,12 @@ CONFIG_PACKAGE_luci-app-adguardhome=y
 # CONFIG_PACKAGE_luci-app-nikki is not set
 
 # Preserve useful template defaults without pulling unrelated custom repositories.
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-app-argon-config=y
+CONFIG_PACKAGE_athena-led=y
+CONFIG_PACKAGE_luci-app-athena-led=y
+CONFIG_PACKAGE_iw-full=y
+# CONFIG_PACKAGE_iw is not set
 CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-app-ddns=y
 CONFIG_PACKAGE_ddns-scripts-cloudflare=y
@@ -341,6 +347,8 @@ rm -rf package/wall-golang-source
 
 # Disabled plugins must not survive a repeated build's previous clones.
 for spec in \
+  'athena-led,luci-app-athena-led:package/wall-athena-led' \
+  'luci-app-athena-led:package/luci-app-athena-led' \
   'luci-app-re-homeproxy:package/luci-app-re-homeproxy' \
   'momo,luci-app-momo:package/OpenWrt-momo' \
   'clashoo,luci-app-clashoo:package/openwrt-clashoo' \
@@ -354,6 +362,21 @@ for spec in \
   IFS=, read -r -a choices <<< "$selection"
   if ! package_enabled "${choices[@]}"; then rm -rf "$directory"; fi
 done
+if package_enabled athena-led luci-app-athena-led; then
+  clone_repository https://github.com/NONGFAH/athena-led.git main package/wall-athena-led/src
+  cp "$PROJECT_ROOT/packages/athena-led/Makefile" package/wall-athena-led/Makefile
+  python3 "$PROJECT_ROOT/scripts/patch-athena-led.py" package/wall-athena-led/src
+  cp "$PROJECT_ROOT/packages/athena-led/gpio.go" package/wall-athena-led/src/internal/gpio.go
+fi
+if package_enabled luci-app-athena-led; then
+  clone_repository https://github.com/NONGFAH/luci-app-athena-led.git main package/luci-app-athena-led
+  # The UI's bundled executable is replaced by the daemon built from source.
+  rm -f package/luci-app-athena-led/root/usr/sbin/athena-led
+  cp "$PROJECT_ROOT/packages/athena-led/luci-Makefile" package/luci-app-athena-led/Makefile
+  chmod +x package/luci-app-athena-led/root/etc/init.d/athena_led
+  sed -i '/procd_set_param respawn/a\  procd_set_param stdout 1\n  procd_set_param stderr 1' package/luci-app-athena-led/root/etc/init.d/athena_led
+  sed -i 's@pgrep /usr/sbin/athena-led@pgrep -f /usr/sbin/[a]thena-led@' package/luci-app-athena-led/luasrc/controller/athena_led.lua
+fi
 # Remove obsolete template implementations superseded by the requested plugins/feeds.
 rm -rf package/luci-app-homeproxy package/OpenWrt-nikki package/luci-app-nikki \
   package/passwall-packages package/luci-app-passwall package/luci-app-passwall2 package/luci-app-openclash
@@ -395,6 +418,8 @@ fi
 if package_enabled clashoo luci-app-clashoo; then
   rm -rf feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
   clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
+  # Translation depends on the UI; the reverse dependency creates a Kconfig cycle.
+  sed -i 's/ +luci-i18n-clashoo-zh-cn//g' package/openwrt-clashoo/luci-app-clashoo/Makefile
 fi
 if package_enabled nikki-rs luci-app-nikki-rs; then
   rm -rf feeds/packages/net/nikki-rs feeds/luci/applications/luci-app-nikki-rs
@@ -497,8 +522,13 @@ if ! /bin/config_generate || ! uci -q get network.lan >/dev/null; then
         rm -f "$backup"
         exit 1
 fi
-# UCI merge replaces these LAN options while retaining the generated device.
-if uci import -m network < "$backup" && uci commit network; then
+# Set only LAN address options; never re-import a partial interface section
+# over the generated br-lan device and its four hardware ports.
+if [ "$(uci -q get network.lan.device)" = br-lan ] &&
+        uci set network.lan.proto='static' &&
+        uci set network.lan.ipaddr='192.168.6.1' &&
+        uci set network.lan.netmask='255.255.255.0' &&
+        uci commit network; then
         rm -f "$backup"
         exit 0
 fi
@@ -522,6 +552,16 @@ if uci set network.lan.ipaddr='192.168.6.1' && uci commit network; then
 else
         exit 1
 fi
+
+# Establish DHCP on the initial router setup, preserving upgrade/AP settings.
+uci -q get dhcp.lan >/dev/null || uci set dhcp.lan='dhcp' || exit 1
+uci set dhcp.lan.interface='lan' || exit 1
+uci set dhcp.lan.start='100' || exit 1
+uci set dhcp.lan.limit='150' || exit 1
+uci set dhcp.lan.leasetime='12h' || exit 1
+uci set dhcp.lan.ignore='0' || exit 1
+uci set 'dhcp.@dnsmasq[0].authoritative=1' || exit 1
+uci commit dhcp || exit 1
 
 # boot normally generates wireless before running uci-defaults. Retry on next
 # boot when no radios exist yet, rather than consuming the one-shot defaults.
@@ -555,11 +595,15 @@ for interface in $interfaces; do
                 *) continue ;;
         esac
         uci set "wireless.$interface.ssid=$ssid" || exit 1
+        # Only the initial factory setup reaches here; retained user settings
+        # are protected by the marker at the top of this script.
+        uci set "wireless.$interface.disabled=0" || exit 1
+        uci set "wireless.$radio.disabled=0" || exit 1
 done
 uci commit wireless || exit 1
 # Persistent marker is included by sysupgrade's /etc/config preservation.
 touch /etc/config/.athena-defaults-applied
-wifi reload || { rm -f /etc/config/.athena-defaults-applied; exit 1; }
+# Network startup follows uci-defaults; avoid a competing wireless reload here.
 exit 0
 ```
 
@@ -586,6 +630,7 @@ on:
       - 'build.sh'
       - 'configs/**'
       - 'scripts/**'
+      - 'packages/**'
       - 'files/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/release.yml'
@@ -615,9 +660,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
       - name: Static checks
         run: |
-          for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script"; done
+          for script in build.sh scripts/*.sh files/etc/uci-defaults/* files/usr/sbin/*; do bash -n "$script"; done
           shellcheck build.sh scripts/*.sh
-          shellcheck -s sh files/etc/uci-defaults/*
+          shellcheck -s sh files/etc/uci-defaults/* files/usr/sbin/*
           python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
   build:
     name: Athena / ${{ matrix.flavor }}
@@ -1156,6 +1201,9 @@ def artifacts(source, output, flavor):
     if not manifests:
         raise ValueError("No firmware manifest was generated")
     installed = {line.split()[0] for path in manifests for line in path.read_text().splitlines() if line.strip()}
+    required = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led'}
+    if not required <= installed:
+        raise ValueError(f"Required runtime packages missing: {sorted(required - installed)}")
     missing = [key.removeprefix("CONFIG_PACKAGE_") for key, value in values.items()
                if value == "y" and key.startswith("CONFIG_PACKAGE_luci-app-") and key.removeprefix("CONFIG_PACKAGE_") not in installed]
     if missing:
@@ -1199,3 +1247,5 @@ if __name__ == "__main__":
 发布补充：本次固件已发布到 `athena-20261008-37795451532`，9 个附件均上传成功。自动创建版本的步骤分为创建源码标签、建立 Release 草稿、上传附件、公开 Release，上传失败时新版本保留草稿。发布错误同时写入运行摘要及 annotation。
 
 命名调整：Release 标题为 `京东雅典娜AX6600 YYYY-MM-DD`，固件附件为 `JDCloud-Athena-<分支>-YYYYMMDD-<构建编号>-sysupgrade.bin` / `factory.bin` / `initramfs.itb`，不再包含目标平台、设备符号、文件系统或重复分支。资料包沿用同前缀的 `info.zip`。
+
+实机反馈修复：新增源码构建的雅典娜屏幕包、Argon 默认设置和无线/DHCP诊断命令；修正首次配置与包完整性校验。证据和实机验证限制见 [修复记录](runtime-fixes.md)。

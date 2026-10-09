@@ -1,0 +1,8 @@
+include $(TOPDIR)/rules.mk
+PKG_NAME:=luci-app-athena-led
+PKG_VERSION:=0.0.7
+PKG_RELEASE:=2
+LUCI_TITLE:=JDCloud Athena screen control
+LUCI_DEPENDS:=+athena-led +luci-compat +luci-lua-runtime
+include $(TOPDIR)/feeds/luci/luci.mk
+# call BuildPackage - package scanner marker; luci.mk performs the actual call.

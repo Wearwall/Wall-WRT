@@ -1,0 +1,32 @@
+#!/bin/sh
+# Read-only report; omit UCI wifi-iface sections containing keys.
+printf '\n=== Board ===\n'
+ubus call system board
+printf '\n=== Wireless runtime ===\n'
+ubus call network.wireless status | sed -E 's/("(key|password|sae_password|auth_secret|acct_secret|private_key_passwd)"[[:space:]]*:[[:space:]]*)".*"(,?)[[:space:]]*$/\1"[redacted]"\3/'
+printf '\n=== Radio settings (no passwords) ===\n'
+radios="$(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')"
+for radio in $radios; do
+    for option in path band country channel htmode disabled; do
+        value="$(uci -q get "wireless.$radio.$option")"
+        printf '%s.%s=%s\n' "$radio" "$option" "$value"
+    done
+done
+printf '\n=== LAN and DHCP runtime ===\n'
+ubus call network.interface.lan status
+ubus call service list '{"name":"dnsmasq"}'
+ip address show br-lan
+ip -details link show master br-lan
+for option in interface start limit leasetime ignore; do
+    value="$(uci -q get "dhcp.lan.$option")"
+    printf 'dhcp.lan.%s=%s\n' "$option" "$value"
+done
+cat /tmp/dhcp.leases 2>/dev/null
+printf '\n=== Regulatory domain ===\n'
+iw reg get
+printf '\n=== PHY capabilities ===\n'
+iw phy
+printf '\n=== Kernel log ===\n'
+dmesg | tail -n 200
+printf '\n=== System log ===\n'
+logread | tail -n 200

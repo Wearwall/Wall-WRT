@@ -18,6 +18,7 @@ on:
       - 'build.sh'
       - 'configs/**'
       - 'scripts/**'
+      - 'packages/**'
       - 'files/**'
       - '.github/workflows/build.yml'
       - '.github/workflows/release.yml'
@@ -47,9 +48,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends shellcheck
       - name: Static checks
         run: |
-          for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script"; done
+          for script in build.sh scripts/*.sh files/etc/uci-defaults/* files/usr/sbin/*; do bash -n "$script"; done
           shellcheck build.sh scripts/*.sh
-          shellcheck -s sh files/etc/uci-defaults/*
+          shellcheck -s sh files/etc/uci-defaults/* files/usr/sbin/*
           python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
   build:
     name: Athena / ${{ matrix.flavor }}

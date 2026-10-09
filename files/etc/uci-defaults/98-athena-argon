@@ -1,0 +1,9 @@
+#!/bin/sh
+# Upgrade once as well, including installations preserving the previous theme.
+[ -e /etc/config/.athena-argon-applied ] && exit 0
+[ -d /www/luci-static/argon ] || exit 1
+uci set luci.themes.Argon='/luci-static/argon' || exit 1
+uci set luci.main.mediaurlbase='/luci-static/argon' || exit 1
+uci commit luci || exit 1
+touch /etc/config/.athena-argon-applied
+exit 0

@@ -9,8 +9,13 @@ if ! /bin/config_generate || ! uci -q get network.lan >/dev/null; then
         rm -f "$backup"
         exit 1
 fi
-# UCI merge replaces these LAN options while retaining the generated device.
-if uci import -m network < "$backup" && uci commit network; then
+# Set only LAN address options; never re-import a partial interface section
+# over the generated br-lan device and its four hardware ports.
+if [ "$(uci -q get network.lan.device)" = br-lan ] &&
+        uci set network.lan.proto='static' &&
+        uci set network.lan.ipaddr='192.168.6.1' &&
+        uci set network.lan.netmask='255.255.255.0' &&
+        uci commit network; then
         rm -f "$backup"
         exit 0
 fi

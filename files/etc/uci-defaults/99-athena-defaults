@@ -11,6 +11,16 @@ else
         exit 1
 fi
 
+# Establish DHCP on the initial router setup, preserving upgrade/AP settings.
+uci -q get dhcp.lan >/dev/null || uci set dhcp.lan='dhcp' || exit 1
+uci set dhcp.lan.interface='lan' || exit 1
+uci set dhcp.lan.start='100' || exit 1
+uci set dhcp.lan.limit='150' || exit 1
+uci set dhcp.lan.leasetime='12h' || exit 1
+uci set dhcp.lan.ignore='0' || exit 1
+uci set 'dhcp.@dnsmasq[0].authoritative=1' || exit 1
+uci commit dhcp || exit 1
+
 # boot normally generates wireless before running uci-defaults. Retry on next
 # boot when no radios exist yet, rather than consuming the one-shot defaults.
 radios="$(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')"
@@ -43,9 +53,13 @@ for interface in $interfaces; do
                 *) continue ;;
         esac
         uci set "wireless.$interface.ssid=$ssid" || exit 1
+        # Only the initial factory setup reaches here; retained user settings
+        # are protected by the marker at the top of this script.
+        uci set "wireless.$interface.disabled=0" || exit 1
+        uci set "wireless.$radio.disabled=0" || exit 1
 done
 uci commit wireless || exit 1
 # Persistent marker is included by sysupgrade's /etc/config preservation.
 touch /etc/config/.athena-defaults-applied
-wifi reload || { rm -f /etc/config/.athena-defaults-applied; exit 1; }
+# Network startup follows uci-defaults; avoid a competing wireless reload here.
 exit 0

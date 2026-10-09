@@ -75,6 +75,8 @@ rm -rf package/wall-golang-source
 
 # Disabled plugins must not survive a repeated build's previous clones.
 for spec in \
+  'athena-led,luci-app-athena-led:package/wall-athena-led' \
+  'luci-app-athena-led:package/luci-app-athena-led' \
   'luci-app-re-homeproxy:package/luci-app-re-homeproxy' \
   'momo,luci-app-momo:package/OpenWrt-momo' \
   'clashoo,luci-app-clashoo:package/openwrt-clashoo' \
@@ -88,6 +90,21 @@ for spec in \
   IFS=, read -r -a choices <<< "$selection"
   if ! package_enabled "${choices[@]}"; then rm -rf "$directory"; fi
 done
+if package_enabled athena-led luci-app-athena-led; then
+  clone_repository https://github.com/NONGFAH/athena-led.git main package/wall-athena-led/src
+  cp "$PROJECT_ROOT/packages/athena-led/Makefile" package/wall-athena-led/Makefile
+  python3 "$PROJECT_ROOT/scripts/patch-athena-led.py" package/wall-athena-led/src
+  cp "$PROJECT_ROOT/packages/athena-led/gpio.go" package/wall-athena-led/src/internal/gpio.go
+fi
+if package_enabled luci-app-athena-led; then
+  clone_repository https://github.com/NONGFAH/luci-app-athena-led.git main package/luci-app-athena-led
+  # The UI's bundled executable is replaced by the daemon built from source.
+  rm -f package/luci-app-athena-led/root/usr/sbin/athena-led
+  cp "$PROJECT_ROOT/packages/athena-led/luci-Makefile" package/luci-app-athena-led/Makefile
+  chmod +x package/luci-app-athena-led/root/etc/init.d/athena_led
+  sed -i '/procd_set_param respawn/a\  procd_set_param stdout 1\n  procd_set_param stderr 1' package/luci-app-athena-led/root/etc/init.d/athena_led
+  sed -i 's@pgrep /usr/sbin/athena-led@pgrep -f /usr/sbin/[a]thena-led@' package/luci-app-athena-led/luasrc/controller/athena_led.lua
+fi
 # Remove obsolete template implementations superseded by the requested plugins/feeds.
 rm -rf package/luci-app-homeproxy package/OpenWrt-nikki package/luci-app-nikki \
   package/passwall-packages package/luci-app-passwall package/luci-app-passwall2 package/luci-app-openclash
@@ -129,6 +146,8 @@ fi
 if package_enabled clashoo luci-app-clashoo; then
   rm -rf feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
   clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
+  # Translation depends on the UI; the reverse dependency creates a Kconfig cycle.
+  sed -i 's/ +luci-i18n-clashoo-zh-cn//g' package/openwrt-clashoo/luci-app-clashoo/Makefile
 fi
 if package_enabled nikki-rs luci-app-nikki-rs; then
   rm -rf feeds/packages/net/nikki-rs feeds/luci/applications/luci-app-nikki-rs

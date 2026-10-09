@@ -227,6 +227,9 @@ def artifacts(source, output, flavor):
     if not manifests:
         raise ValueError("No firmware manifest was generated")
     installed = {line.split()[0] for path in manifests for line in path.read_text().splitlines() if line.strip()}
+    required = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led'}
+    if not required <= installed:
+        raise ValueError(f"Required runtime packages missing: {sorted(required - installed)}")
     missing = [key.removeprefix("CONFIG_PACKAGE_") for key, value in values.items()
                if value == "y" and key.startswith("CONFIG_PACKAGE_luci-app-") and key.removeprefix("CONFIG_PACKAGE_") not in installed]
     if missing:

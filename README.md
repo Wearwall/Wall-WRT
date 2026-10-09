@@ -94,3 +94,7 @@ https://github.com/laipeng668/openwrt-ci-roc   ##基于构建服务修改
 ## Release 命名
 
 发布标题：`京东雅典娜AX6600 YYYY-MM-DD`。固件文件名：`JDCloud-Athena-<分支名>-YYYYMMDD-<构建编号>-<固件类型>`，类型为 `sysupgrade.bin`、`factory.bin` 或 `initramfs.itb`。资料包为同前缀的 `info.zip`，另附对应 SHA256SUMS。日期沿用原始编译日期；所有所选分支编译成功后自动发布，可通过发布工作流补发历史成功构建。
+
+## 实机反馈修复
+
+屏幕控制、Argon 默认主题及设置、首次无线/DHCP 配置修复见 [实机反馈修复记录](docs/runtime-fixes.md)。无线启动停滞与 DHCP 无租约仍需设备日志定位；新固件包含 `athena-wifi-diagnose` 诊断命令。
