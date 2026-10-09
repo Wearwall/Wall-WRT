@@ -1,174 +1,87 @@
-<div align="center">
-<h1>Wall-WRT — 雅典娜 AX6600 云编译</h1>
-</div>
+# Wall-WRT — 雅典娜 AX6600 云编译
 
-本仓库只收集京东云雅典娜 RE-CS-02（`jdcloud_re-cs-02`）的固件，目标固定为 `qualcommax/ipq60xx`。保留原 Bash 脚本、Kconfig 配置和 Actions 工作方式，将插件来源抽为共用脚本，移除旧的多设备固件入口与失效的触发器。独立 SDK 工具仍保留为手动工具；不参与固件流水线。
+目标设备固定为京东云雅典娜 RE-CS-02（jdcloud_re-cs-02），目标平台 qualcommax/ipq60xx。本仓库只出这一款机型的固件，插件来源抽为共用脚本，保留原 Bash 脚本、Kconfig 配置与 Actions 工作方式。
 
-**初次改造仅做静态校验；用户后续授权后已触发真实双线构建，并修复 Go feed 目录校验。当前尚未核实成功镜像或实机运行。详情见 [实际构建记录](docs/build-attempts.md)。**
+## 双分支
 
-## 双分支与设备支持
-
-| FLAVOR | 仓库 | 跟踪分支 | 包格式 | NSS / 当前设备状态 |
-|---|---|---|---|---|
-| `libwrt` | https://github.com/LiBwrt/LibWrt.git | `25.12-nss` | apk | NSS 11.4，开启 WiFi offload；已有 RE-CS-02 定义 |
-| `immortalwrt` | https://github.com/laipeng668/immortalwrt.git | `openwrt-25.12` | apk | 沿用 openwrt-ci-roc：测试内核 6.18、NSS 12.5；已有 RE-CS-02 定义，关闭 WiFi NSS offload |
-
-2026-10-08 静态核对：[openwrt-ci-roc](https://github.com/laipeng668/openwrt-ci-roc) 的 `JDCloud-ImmortalWrt.yml` 实际使用 `laipeng668/immortalwrt`，而非官方仓库。现已采用相同 fork/分支，保留单雅典娜设置，没有复制其多设备配置。fork 提交 `0a98e096208584bf90982f59f6d5a43f89443276` 已包含雅典娜镜像、设备树、网口、无线校准数据和 eMMC 升级集成；其默认内核 6.12，`CONFIG_TESTING_KERNEL=y` 选择测试内核 6.18。参考 CI 提交为 `2d2c4710ebf9b97c1d30eb63989e3eb69b3583b0`。
-
-这项调整解决的是“源码缺雅典娜设备定义”阻塞。**这条 ImmortalWrt 是带 NSS 的社区 fork，不再描述为官方无 NSS 分支。** IPQ60xx 的 NSS 12.5 不提供 WiFi offload，因此显式关闭 ATH11K_NSS_SUPPORT / MESH，保留正常无线驱动；LibWrt 仍选择 NSS 11.4 与 WiFi offload。两条线的最终配置、完整镜像及实机功能仍未编译验证。
-
-构建在 feeds 下载前静态检查雅典娜源码集成；上游若删除支持，会提前报错。缺少生成的 Kconfig profile 时仍拒绝编译其他机型。具体修复证据见 [ImmortalWrt 修复记录](docs/immortalwrt-fix.md)。
-
-`configs/device.config` 使用你要求的下划线设备符号并关闭多机型。实际 LibWrt Kconfig 由 `scripts/target-metadata.pl` 生成，目前定义的是 `CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02`；连字符并非无效。构建会读取 `tmp/.config-target.in`，只在确实定义了对应符号时解析为该形式，再执行 defconfig。两种拼写都不存在则停止，防止 Kconfig 默认选中其他设备。最终 .config 中其他设备的 `# … is not set` 属于上游正常输出，不代表构建它们。
-
-## 本地 / 云构建
-
-配置入口：`configs/targets.conf` 描述源码、分支和配置路径；`configs/device.config` 为共用设备设置；`configs/libwrt.config` 只含 NSS 等 LibWrt 选项；`configs/immortalwrt.config` 选择参考 fork 的测试内核、512M ath11k 内存配置及 NSS 12.5，并关闭 WiFi NSS offload；`configs/packages.txt` 是唯一插件选择清单。关包用 `=n` 或 `# CONFIG_PACKAGE_xxx is not set`，最后一条设置生效。
-
-Linux 构建命令（本次未执行）：
-
-```bash
-FLAVOR=libwrt JOBS=4 bash build.sh
-FLAVOR=immortalwrt JOBS=4 bash build.sh
-FLAVOR=all JOBS=4 bash build.sh  # 默认 all，一条线失败仍尝试另一条
-```
-
-源码位于 `sources/<flavor>/`。已有目录每次执行 fetch + reset --hard 到跟踪分支最新提交；这是专用生成目录，**不要把 SOURCE_ROOT 指向有个人修改的源码工作目录**。从此前官方 ImmortalWrt 迁移的专用源码目录，会自动将 origin 改为指定 fork 并 fetch/reset；其他非预期 origin 仍拒绝操作。每次同步也从上游 feeds.conf.default 重建专用 feeds.conf，防止旧 feed 清单遮蔽 fork 的 NSS feed；不要在生成目录中保存个人 feed 修改。插件也每次删除专用目录重新浅克隆。上游动态更新不固定在 lock 的历史版本，构建中仍保留原下载哈希检查。
-
-只同步源码与 feeds，不编译：
-
-```bash
-FLAVOR=all bash scripts/sync-upstream.sh
-# 打印每个 source/feed 的短 SHA，并写入 upstream-lock.txt。
-git add upstream-lock.txt
-# 审核 diff 后自行提交；脚本不自动提交或推送。
-```
-
-仓库内初始 lock 是本次只读查询的远端分支 HEAD 快照，注释明确标识；第一次 sync 会替换为本地同步后实际 source/feed HEAD。插件完整 SHA 单独写入每条线的 `third-party-sources.txt`，它与 lock 一起随产物保存。日志在 `logs/<flavor>.log`。
-
-Actions 运行 **编译雅典娜固件（LibWrt / ImmortalWrt）**：手动、master 构建代码 push、每天 03:17 UTC 触发；两条线独立 matrix，`fail-fast: false`。成功固件上传为 `Athena-<flavor>-<日期>-<run_id>`，失败也保留日志。全部所选分支成功后自动发布到 [Releases](https://github.com/Wearwall/Wall-WRT/releases)，标签为 `athena-YYYYMMDD-<run_id>`；每个镜像文件名包含分支、编译日期和构建编号，另附配置/manifest/审计信息包与 SHA256SUMS。日期沿用原始构建的日期，不使用补发日期。Artifacts 保留 14 天，Release 附件供长期下载。每日更新能检测破坏，不能自动修复上游破坏。
-
-手动启动入口：[打开固件工作流](https://github.com/Wearwall/Wall-WRT/actions/workflows/build.yml)。点击 **Run workflow**，选择 `master`，再选择 `flavor`：`all` 编译双线、`libwrt` / `immortalwrt` 只编译对应线，然后点击绿色启动按钮。若 fork 的 Actions 尚未启用，先在 Actions 页面启用；如果没有 Run workflow 按钮，需使用有仓库写权限的账号。
-
-首次入口注册提交使用 `[workflow-register]` 标记：它会运行静态检查 job，并跳过固件 build job。该标记由本仓 workflow 判断，不是 GitHub 的 `[skip ci]`；后续普通 push、schedule 和手动启动仍正常编译。此前带 `[skip ci]` 的提交没有通过 push 产生运行，本次入口修复不启动完整固件编译。
-
-补发已有构建：在 Actions 打开 **发布已编译的雅典娜固件**，手动输入成功固件构建的 run ID。该任务下载原始产物，验证 SHA256SUMS，再发布带日期的镜像和信息附件，不重新编译。相同 run ID 重跑会更新同一 Release。
-
-缓存 `dl/`、`tmp/`、ccache。tmp 按源码/feed SHA、配置与日期隔离，插件替换后重新生成设备/包元数据。不会恢复 staging_dir 或伪造 stamp。缓存不能省略首次工具链编译，**不保证一小时完成**；Actions 上限 360 分钟，首次下载、磁盘容量和大量 Go/Rust 包可能成为瓶颈。
-
-可选 Linux 容器（本次未构建镜像）：
-
-```bash
-BUILD_UID=$(id -u) BUILD_GID=$(id -g) FLAVOR=libwrt docker compose run --build --rm firmware
-```
-
-宿主挂载当前目录，编译用户为非 root。macOS 原生不能编译，本次不在 macOS 或容器中执行编译；跨架构 Linux 容器的可用性也没有验证。
-
-## 插件矩阵
-
-| 分类 / 插件 | 包名 | 仓库（来源） | 分支 | 菜单位置 | 核心来源 |
+| FLAVOR | 仓库 | 跟踪分支 | 包格式 | 内核 / NSS | WiFi offload |
 |---|---|---|---|---|---|
-| 容器 · Docker | dockerd / docker / docker-compose | 官方 packages feed | 随目标 feed | 命令行 / 容器 | 构建时编译 |
-| 容器 · Dockerman | luci-app-dockerman / luci-lib-docker / luci-compat / ttyd | https://github.com/lisaac/luci-app-dockerman + https://github.com/lisaac/luci-lib-docker | master / master | 顶级「容器」 | 经典 Lua UI，库独立仓库 |
-| 商城 · iStore | luci-app-store / luci-lib-taskd / taskd | https://github.com/linkease/istore | main | 顶级「商店」 | 前端构建时从 istore-ui Release 下载，应用在线安装 |
-| VPN · RE:HomeProxy | luci-app-re-homeproxy | https://github.com/1andrevich/homeproxy-hiddify | master | 原生菜单（通常服务） | 刷机后 Core & Tools 下载 hiddify-core / sing-box-extended |
-| VPN · momo | momo / luci-app-momo | https://github.com/nikkinikki-org/OpenWrt-momo | main | 原生菜单 | 由 Makefile 依赖提供 sing-box |
-| VPN · Clashoo | clashoo / luci-app-clashoo | https://github.com/kenzok8/openwrt-clashoo | main | 原生菜单 | UI 下载 mihomo / sing-box，不覆盖系统 sing-box |
-| VPN · Nikki RS | nikki-rs / luci-app-nikki-rs | https://github.com/CHKayanami/OpenWrt-nikki-rs | main | 原生菜单 | 构建期从 Release 下载 clash-rs |
-| VPN · FullCombo Shark | mihomo / luci-app-fchomo | https://github.com/fcshark-org/openwrt-fchomo | master | 原生菜单 | mihomo 随包下载 |
-| VPN · OpenClash | luci-app-openclash | https://github.com/vernesong/OpenClash.git | master | 原生菜单 | UI 下载核心 |
-| VPN · Passwall | luci-app-passwall | https://github.com/Openwrt-Passwall/openwrt-passwall.git | main | 原生菜单 | pw_packages 编译依赖 |
-| VPN · Passwall2 | luci-app-passwall2 | https://github.com/Openwrt-Passwall/openwrt-passwall2.git | main | 原生菜单 | pw_packages 编译依赖 |
-| VPN · 共同依赖 | 按依赖解析 | https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git | main | 无单独菜单 | 与两个 Passwall feed 配套 |
-| 服务 · Tailscale | tailscale | https://github.com/whzhni1/luci-app-tailscale | main | 社区前端的服务菜单 | feed 原位替换，初始预期 1.102.5，随后跟随 bot 更新 |
-| 服务 · Tailscale 社区前端 | luci-app-tailscale-community | https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community | master | 服务 | 强制依赖 tailscale |
-| 服务 · Cloudflare | cloudflared / luci-app-cloudflared | 目标官方 packages / luci feed | 随目标 feed | 服务 | 官方 feed 编译 |
-| 服务 · AdGuardHome | luci-app-adguardhome | https://github.com/rufengsuixing/luci-app-adguardhome | master | 服务 | 只编 Lua 管理页；刷机后手动设置/下载核心 |
+| libwrt | LiBwrt/LibWrt | 25.12-nss | apk | NSS 11.4 | 开启（ATH11K_NSS_SUPPORT） |
+| immortalwrt | laipeng668/immortalwrt | openwrt-25.12 | apk | 测试内核 6.18 + NSS 12.5 | 关闭（IPQ60xx 的 NSS 12.5 不提供 WiFi offload，走正常 ath11k） |
 
-上述「VPN」是功能分类，**本次未新增统一顶级 VPN 节点**，保留插件原生路径、ACL 和子菜单。用户需求第五节允许做或不做并注明；插件的实际菜单标题仍须刷机核实。服务项使用原生 menu JSON / Lua，不另造节点。Dockerman 只改 `_("Docker")` 为 `_("容器")`；iStore 在 feeds install 后改 `_("iStore")` 为 `_("商店")`，路径 `admin/docker` / `admin/store` 不变。若上游改成 JS 菜单，需人工核对，而非替换 lisaac 源码。
+两者均已包含 RE-CS-02 的镜像、设备树、网口、无线校准数据与 eMMC 升级集成。构建在 feeds 下载前静态检查雅典娜源码集成，上游若删除支持会提前报错；缺少生成的 Kconfig profile 时拒绝编译其他机型。
 
-其他 Lua 应用扩展改名方法：
-
-```bash
-grep -rn 'entry({"admin",' <app>/luasrc/controller/
-# 找到两元素顶级 entry，检查 _(标题)，再用同样 sed 只替换标题字符串。
-```
-
-全局开启 `CONFIG_LUCI_LANG_zh_Hans=y`。`gen-i18n.sh` 在第一次设备 defconfig 后扫描当前 feeds/package 中已选中的 `luci-app-*`，读取 PKG_NAME 和真实中文 po 目录。zh-cn 与 zh_Hans 分别写入，不硬编码插件清单；同时读取当前 `luci.mk` 的 `LUCI_LC_ALIAS`（例如 zh_Hans → zh-cn），追加实际包名候选，再执行 defconfig，输出 `i18n-map.txt`。因此 po 目录名不一定等于 APK 的语言后缀。Cloudflared 两种候选明确保留；缺翻译只警告，不影响主包功能。最终中文界面需实机检查，不能以静态目录扫描代替。
-
-## 默认值与网络合并
+## 默认值
 
 | 项目 | 默认值 |
 |---|---|
-| LAN | `192.168.6.1/24` |
-| 2.4 GHz SSID | `Wall` |
-| 低频 5 GHz SSID | `Wall-5G` |
-| 高频 5 GHz SSID | `Wall-6E` |
-| 登录用户名 | `root` |
-| 密码 / WiFi 加密 | 沿用目标上游默认，本仓库不写密码；首次登录请设置 |
+| LAN | 192.168.6.1/24 |
+| 2.4 GHz SSID | Wall |
+| 5 GHz SSID（低频 / 高频） | Wall-5G / Wall-6E |
+| 登录用户名 | root |
+| 密码 / WiFi 加密 | 沿用上游默认，本仓库不写密码，首次登录请设置 |
 
-三处 LAN 冗余：构建时查找实际 `config_generate` 并替换旧地址；overlay `files/etc/config/network` 含完整静态 LAN 段；99 首刷默认脚本再次 UCI 写入。单独预置 network 会阻止上游生成网桥/WAN，所以新增 00 脚本：仅在发现本仓库 overlay 标记时，先重新生成上游硬件默认网络，再用 `uci import -m` 合并 LAN 配置，保留其它段。恢复用户旧配置时无标记，不重生成。
+LAN 三处冗余：构建时替换 config_generate 中的旧地址、overlay 提供完整静态 LAN 段、99 首刷脚本再次 UCI 写入。单独预置 network 会挡住上游生成网桥/WAN，故新增 00 脚本——仅当发现本仓库 overlay 标记时，先重新生成上游硬件默认网络，再用 `uci import -m` 合并 LAN 配置，保留其余段；用户恢复旧配置后无标记，不会被重置。
 
-SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部。脚本遍历 `wireless.default_radio*`，通过 device 引用读取 band，2g 单独处理；两条 5g 按信道排序，auto 信道时按硬件 path 排序，不写死 radio 编号。**两个 radio 都 auto 时，仅靠 band 无法知道哪个是低频/高频，path 回退的对应关系需人工核实**。`Wall-6E` 只是 SSID，AX6600 此机型的第三频段仍是 5 GHz，不是 6 GHz。
+SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 识别 2g、两条 5g 按信道排序（auto 时按硬件 path 排序），不写死 radio 编号。脚本不写加密、密码、信道或 disabled，无无线设备时返回失败以便下次开机重试，应用后保存标记，保留配置的升级不会重置个人设置。
 
-脚本不写加密、密码、信道或 disabled；是否默认开启无线由上游决定。没有无线设备/接口时返回失败以便下次开机重试；应用后保存标记，保留配置升级时不重置个人 IP / SSID。写完执行 `wifi reload`。**LAN 首刷兜底写入后需执行一次 `/etc/init.d/network restart` 或重启路由器才能使正在运行的网络服务使用该值**。
+## 插件矩阵
 
-## 产物、刷机与升级
+| 分类 | 插件 | 来源 | 菜单位置 |
+|---|---|---|---|
+| 容器 | Docker（dockerd / docker / docker-compose） | 官方 packages feed | 命令行 / 容器 |
+| 容器 | Dockerman | lisaac/luci-app-dockerman + luci-lib-docker | 顶级「容器」 |
+| 商城 | iStore | linkease/istore（main） | 顶级「商店」 |
+| VPN | RE:HomeProxy | 1andrevich/homeproxy-hiddify | 原生（服务） |
+| VPN | momo | nikkinikki-org/OpenWrt-momo | 原生 |
+| VPN | Clashoo | kenzok8/openwrt-clashoo | 原生 |
+| VPN | Nikki RS | CHKayanami/OpenWrt-nikki-rs | 原生 |
+| VPN | FullCombo Shark | fcshark-org/openwrt-fchomo | 原生 |
+| VPN | OpenClash | vernesong/OpenClash | 原生 |
+| VPN | Passwall | OpenWrt-Passwall/openwrt-passwall | 原生 |
+| VPN | Passwall2 | OpenWrt-Passwall/openwrt-passwall2 | 原生 |
+| VPN | 共同依赖 | OpenWrt-Passwall/openwrt-passwall-packages | 无独立菜单 |
+| 服务 | Tailscale | whzhni1/luci-app-tailscale（feed 原位替换，ts_omit_ssh） | 原生 |
+| 服务 | Tailscale 社区前端 | Tokisaki-Galaxy/luci-app-tailscale-community | 服务 |
+| 服务 | Cloudflare | 官方 packages / luci feed | 服务 |
+| 服务 | AdGuardHome | rufengsuixing/luci-app-adguardhome（仅 Lua 管理页） | 服务 |
 
-源码产物目录固定为 `sources/<flavor>/bin/targets/qualcommax/ipq60xx/`，交付目录为 `artifacts/<flavor>/`。只收集名字含 `jdcloud_re-cs-02` 的镜像，至少要求非空 sysupgrade、manifest、正确单设备目标；检测到其他设备镜像、LibWrt 丢失 NSS 11.4，或 ImmortalWrt 丢失测试内核/NSS 12.5/512M 设定、错误打开 WiFi NSS 就不交付。附 .config、manifest、上游与插件 SHA、语言对照表、警告日志、构建信息及 SHA256SUMS。**缺包警告不会终止编译，须检查 config-audit.txt 与 manifest，确认可以接受后再刷机。**
+- 「VPN」仅为功能分类，未新增统一顶级节点，保留各插件原生路径与子菜单；代理核心（hiddify-core / sing-box / clash-rs / mihomo）均为刷机后或构建期从 Release 下载，不覆盖系统 sing-box。
+- 八个透明代理插件可同时勾选，但依赖兼容性未经编译验证；运行时只启用一个，防火墙规则可能互相覆盖。
+- 全局开启 `CONFIG_LUCI_LANG_zh_Hans=y`，由 gen-i18n.sh 在首次 defconfig 后扫描已选中的 `luci-app-*` 实际 po 目录与 luci.mk 的 LUCI_LC_ALIAS 生成映射，不硬编码清单；缺翻译仅告警。中文界面仍须实机核对。
+- iStore UI 需联网访问 istore.linkease.com；官方说明仅覆盖 x86_64/arm64，本机型运行与应用兼容未验证。
 
-首次刷机：
+## 产物
 
-1. 确认铭牌为雅典娜 RE-CS-02，备份现有配置、校准数据与 eMMC 重要数据，准备该机型已验证的恢复方式。
-2. 从 Releases 下载正确 flavor 的固件及 SHA256SUMS，校验该镜像的哈希；下载同分支 info.zip 查看 manifest 和配置审计。如从 Actions 下载成功 artifact，解压后执行 `sha256sum -c SHA256SUMS`。不要使用日志 artifact 当固件。
-3. 原厂到 OpenWrt 的引导方式、分区布局与 factory 镜像兼容性必须按此设备的上游说明核实。**本次未实机验证，不给出猜测的 dd / 分区写入命令**；无 factory 镜像时不能把 sysupgrade 当作原厂安装镜像。
-4. 首刷后访问 `192.168.6.1`，若仍在旧网段，重启网络/路由器；设置管理密码，核对三个 SSID、网口和无线加密。默认不自动格式化 128G 数据盘；Docker 数据目录应放在已核实的独立 ext4 数据分区。
+源码产物在 `sources/<flavor>/bin/targets/qualcommax/ipq60xx/`，交付目录 `artifacts/<flavor>/`。只收集名字含 `jdcloud_re-cs-02` 的镜像，且必须满足：非空 sysupgrade、manifest 齐备、目标为单设备；检测到其他设备镜像，或 LibWrt 丢失 NSS 11.4、ImmortalWrt 丢失测试内核 / NSS 12.5 / 512M 设定 / 错误打开 WiFi NSS，均不交付。
 
-升级：同 flavor、同机型、已确认兼容布局时，在 LuCI「系统 → 备份/升级」上传 sysupgrade 镜像并核对设备提示。同一配置可按需保留；跨 LibWrt/ImmortalWrt 迁移建议不保留配置并手动恢复必要设置。若保留上游升级配置，SSID/IP 首刷标记会保留，脚本不会覆盖个人改动。不要强制忽略镜像设备检查。
+附件包含 `.config`、manifest、上游与插件 SHA、语言对照表、config-audit 警告日志、构建信息与 `SHA256SUMS`。缺包警告不终止编译，刷机前务必先看审计与 manifest 再判断。
 
-LibWrt NSS 11.4 核对：
+Actions 产物命名 `Athena-<flavor>-<日期>-<run_id>`，保留 14 天；全部所选分支成功后自动发布 Release（标签 `athena-YYYYMMDD-<run_id>`，日期沿用原始构建日期）。失败也保留日志，并可凭 run ID 补发，无需重新编译。
+
+## 刷机与升级
+
+**首次刷机**
+
+1. 确认铭牌为 RE-CS-02，备份现有配置、校准数据与 eMMC 重要数据，确认该机型已验证的恢复方式。
+2. 从 Releases 下载对应 flavor 固件与 `SHA256SUMS` 并校验；同分支 info.zip 查看 manifest 与配置审计。Actions artifact 解压后执行 `sha256sum -c SHA256SUMS`，不要用日志 artifact 当固件。
+3. 原厂 → OpenWrt 的引导方式、分区布局与 factory 镜像兼容性必须按该设备上游说明核实；无 factory 镜像时不能把 sysupgrade 当原厂安装镜像。
+4. 访问 192.168.6.1；若仍在旧网段，重启网络/路由器。设置管理密码，核对三个 SSID、网口与无线加密。
+5. 默认不自动格式化 128G 数据盘，Docker 数据目录放在已核实的独立 ext4 分区。
+
+**升级**
+
+同 flavor、同机型、已确认布局兼容时，在 LuCI「系统 → 备份/升级」上传 sysupgrade 并核对设备提示，不要强制忽略镜像设备检查。同 flavor 可按需保留配置；跨 LibWrt/ImmortalWrt 建议不保留配置并手动恢复。保留配置时首刷标记仍在，个人 IP / SSID 不会被覆盖。
+
+**刷机后核对 NSS**
 
 ```bash
 grep '^CONFIG_NSS_FIRMWARE_VERSION_11_4=y$' artifacts/libwrt/firmware.config
-grep '^CONFIG_ATH11K_NSS_SUPPORT=y$' artifacts/libwrt/firmware.config
-# 上述仅证明配置选择；刷机后再看 dmesg 中 NSS/ath11k 初始化，并实测 WiFi offload。
 dmesg | grep -iE 'nss|ath11k'
 ```
 
-## 已知风险与限制
+配置只证明选项被选中，实际 offload 生效仍需实测。
 
-- ImmortalWrt 现在使用参考 CI 的社区 NSS fork，NSS 12.5 提供以太网加速，WiFi 使用正常 ath11k 路径；不能宣称其有 NSS 11.4 的 WiFi offload，也不能沿用之前“全部无 NSS”的性能描述。两条线实际性能差异需实测。测试内核 6.18 与动态 feeds 更新也可能引入新的编译/运行问题。
-- 八个透明代理插件的配置可以同时选择，但本次没有编译证明依赖兼容。**运行时只启用一个**，防火墙规则可能互相覆盖；Open-Box 若另行安装也需独占。本仓库未额外添加 Open-Box。
-- Tailscale 社区前端 `DEPENDS:=+tailscale` 强制 select；要关闭必须守护与前端同时设 n。
-- 按用户提供的故障诊断：Go 1.27 与官方 tailscale 1.98.3 的 json/v2 API 不兼容；保持 whzhni1 替换源，而非无效的 CONFIG_GOLANG_VERSION_1_26 降版本尝试。共用脚本保留模板 laipeng668 Go 源，版本随上游更新；本次没有重现编译错误。
-- whzhni1 初始预期 1.102.5，但每日 bot 会改版，不能同时宣称固定版本和自动更新。此仓设置 `ts_omit_ssh`，Tailscale 内置 SSH 不可用。仅该源确实编译失败后，人工采用 `https://github.com/GuNanOvO/openwrt-tailscale` main，其包目录是 `package/tailscale`；脚本不静默回退。
-- iStore 官方说明覆盖 x86_64/arm64；本目标虽为 aarch64，qualcommax/ipq60xx 的完整商店运行与应用兼容仍未实机验证。需联网访问 istore.linkease.com。
-- iStore UI、nikki-rs、mihomo 构建期下载 GitHub Release 文件可能失败。保留原校验，重跑或排查访问；不修改哈希或关闭 TLS。Nikki RS 禁用回退、FCHomo 冲突时禁用直接 mihomo 选择均需核对当时 Makefile，不能假设 UI 总能补装缺失的强制依赖。
-- Passwall 与 firewall4/nftables 共存需实测。已选择 dnsmasq-full；若上游 DEFAULT_PACKAGES.router 仍强制 dnsmasq 且报冲突，人工检查 `include/target.mk` 后将 router 默认中的 dnsmasq 改为 dnsmasq-full，不全局替换无关内容。
-- 某些上游 feeds.conf 或嵌套依赖使用 gitcode，访问可能失败。本仓 iStore 固定官方 GitHub 镜像 `src-git istore https://github.com/linkease/istore;main`；其它可修改的嵌套源需核实官方镜像，不猜 URL。要换 istore 主源需同时修改 plugins-clone.sh 的 add_feed 地址，否则下一次准备会恢复它。
-- kmod 必须与当前固件的内核 ABI/hash 一致。本仓选定 kmod 直接编进固件；不能在线安装其他构建的 kmod。普通插件依赖也可能引入 kmod，应核对当前源。
-- APK 包不允许 lisaac 版本号的 v 前缀，脚本泛化移除数字版本前的 v；runc 保留 GOFLAGS=-buildvcs=false 归档构建修复。上游 Makefile 布局变化会报错或显著警告，需人工核对。
-- 静态校验无法验证 NSS、网口、eMMC 分区、Docker cgroup 或最终 APK 依赖解析；多插件、首次工具链与 GitHub runner 磁盘容量也是实际构建风险。
+**待实机验证**：ImmortalWrt fork 的内核 6.18 / NSS 12.5 与正常 ath11k 无线、以太网 NSS 驱动的整合；两个 5g auto radio 的硬件 path 与高低频对应关系（`Wall-6E` 只是 SSID，AX6600 第三频段仍是 5 GHz）；原厂首次安装布局与 128G 数据分区；kmod 必须与本机内核 ABI 一致，不可在线安装其他构建的 kmod。
 
-## 需人工核实项
-
-1. ImmortalWrt fork 的测试内核 6.18 / NSS 12.5 实际构建和启动兼容性，特别是正常 ath11k 无线与以太网 NSS 驱动集成；源码支持已核对，但没有实际出包或刷机。
-2. 各 openwrt-25.12 feed 中 cloudflared、Lua 运行时、内核选项及各插件依赖的最终 Kconfig/manifest；`CONFIG_KERNEL_BRIDGE_NETFILTER` 在此前 LibWrt 静态定义中不存在，实际内核依赖由 kmod-br-netfilter 提供，已保留你要求的候选并警告。
-3. 两个 5g auto radio 的硬件 path 与实际高/低频对应关系、原厂首次安装与跨 flavor 升级布局、128G 数据分区；均需设备验证。
-4. 动态包源的实际版本、Po/PKG_NAME 非标准变量写法、翻译别名、原生菜单，以及代理核心/UI 下载功能；源目录扫描不能代替运行验证。
-5. mihomo / sing-box 等多源同名包的冲突与 Passwall 默认 dnsmasq 替换是否必要，需真实 defconfig 和编译日志判定。
-
-## 静态自检
-
-```bash
-bash -n build.sh && bash -n scripts/*.sh
-# Bash 对多文件参数只解析第一个，完整检查必须逐文件执行：
-for script in build.sh scripts/*.sh files/etc/uci-defaults/*; do bash -n "$script" || exit; done
-shellcheck build.sh scripts/*.sh
-shellcheck -s sh files/etc/uci-defaults/*
-python3 -c 'import ast,json,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path("scripts").glob("*.py")]; [json.loads(p.read_text()) for p in pathlib.Path("files").rglob("*.json")]'
-docker compose config --quiet
-# 编译入口 patch 后，应针对实际发现的 config_generate 检查旧 LAN 地址。
-```
-
-本次真实输出、逐文件改动表与要求交付文件的完整内容见 [改造交付记录](docs/implementation-report.md)。环境已沿用 cloud-environment-onboarding:setup 配置工具；本次真实双分支构建已成功，记录见 [实际构建记录](docs/build-attempts.md)。发布工作流支持补发已有成功构建，无需重新编译。
+源码位于 `sources/<flavor>/`，每次执行会 fetch + `reset --hard` 到跟踪分支最新提交——这是专用生成目录，不要把 SOURCE_ROOT 指向有个人修改的源码目录，也不要在其中保存个人 feed 修改。详细构建命令、缓存策略、静态自检脚本见仓库 README。
