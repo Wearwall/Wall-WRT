@@ -85,3 +85,8 @@ dmesg | grep -iE 'nss|ath11k'
 **待实机验证**：ImmortalWrt fork 的内核 6.18 / NSS 12.5 与正常 ath11k 无线、以太网 NSS 驱动的整合；两个 5g auto radio 的硬件 path 与高低频对应关系（`Wall-6E` 只是 SSID，AX6600 第三频段仍是 5 GHz）；原厂首次安装布局与 128G 数据分区；kmod 必须与本机内核 ABI 一致，不可在线安装其他构建的 kmod。
 
 源码位于 `sources/<flavor>/`，每次执行会 fetch + `reset --hard` 到跟踪分支最新提交——这是专用生成目录，不要把 SOURCE_ROOT 指向有个人修改的源码目录，也不要在其中保存个人 feed 修改。详细构建命令、缓存策略、静态自检脚本见仓库 README。
+
+## 感谢上游各位大神
+https://github.com/LiBwrt/LibWrt       ##上游WRT分支
+https://github.com/fishand73/JDBoxFlashTool   ##刷机uBoot工具   
+https://github.com/laipeng668/openwrt-ci-roc   ##基于构建服务修改
