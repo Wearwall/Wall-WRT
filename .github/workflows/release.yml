@@ -72,10 +72,15 @@ jobs:
           tag=$(cat release/tag.txt)
           title=$(cat release/title.txt)
           commit=$(python3 -c 'import json; print(json.load(open("source-run.json"))["head_sha"])')
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber 2>&1 | tee release/publish.log
-          else
-            gh release create "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" \
-              --target "$commit" --title "$title" --notes-file release/notes.md 2>&1 | tee release/publish.log
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                -f "ref=refs/tags/$tag" -f "sha=$commit" 2>&1 | tee release/publish.log
+            fi
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+              --title "$title" --notes-file release/notes.md 2>&1 | tee release/publish.log
           fi
+          gh release upload "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber 2>&1 | tee release/publish.log
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --title "$title" --notes-file release/notes.md 2>&1 | tee release/publish.log
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

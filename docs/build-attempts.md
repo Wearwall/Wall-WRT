@@ -19,3 +19,9 @@
 此前 api.github.com 被环境网络策略拦截；2026-10-09 核对时 API 已可用，可读取构建结果及产物列表。但产物存储域名仍拒绝下载，因此补发任务在 GitHub runner 中直接下载已有产物、校验并发布。
 
 已核对第二次构建状态为 success，产物包含 LibWrt 固件约 541 MB、ImmortalWrt 固件约 542 MB，以及两份独立日志。编译成功不代表实机运行验证。
+
+## 补发 Releases（2026-10-09）
+
+[本次固件 Release](https://github.com/Wearwall/Wall-WRT/releases/tag/athena-20261008-37795451532) 已公开发布。最终补发任务 [37867297848](https://github.com/Wearwall/Wall-WRT/actions/runs/37867297848) 成功；核对 9 个附件均为 uploaded：两条分支各 3 个镜像、各 1 个配置资料包，以及 SHA256SUMS。固件先在 GitHub runner 校验原始产物的哈希，再按原始编译日期 20261008 命名并重新生成发布校验表。
+
+早期自动创建 Release 的尝试失败；本次通过现有授权创建原始构建标签和 Release，随后 runner 上传成功。后续创建流程已调整为显式创建标签、建立草稿、上传附件后再公开，失败错误写入摘要和 annotation。

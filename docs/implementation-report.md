@@ -1195,3 +1195,5 @@ if __name__ == "__main__":
 ## 自动发布 Releases（2026-10-09）
 
 新增 `.github/workflows/release.yml` 与 `scripts/prepare-release.py`。固件构建成功后调用发布工作流；也可输入历史成功构建的 run ID 补发。仅发布 master 的固件构建，校验原始 SHA256SUMS，日期取自原始 artifact 名；每个镜像文件名包含分支、日期与构建编号，发布后重新生成对应 SHA256SUMS。
+
+发布补充：本次固件已发布到 `athena-20261008-37795451532`，9 个附件均上传成功。自动创建版本的步骤分为创建源码标签、建立 Release 草稿、上传附件、公开 Release，上传失败时新版本保留草稿。发布错误同时写入运行摘要及 annotation。
