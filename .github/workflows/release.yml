@@ -55,13 +55,24 @@ jobs:
         run: python3 scripts/prepare-release.py downloaded release "$SOURCE_RUN_ID"
       - name: Publish release
         run: |
+          report_failure() {
+            status=$?
+            if [ "$status" -ne 0 ] && [ -f release/publish.log ]; then
+              {
+                printf '\n### Release publication failed\n\n```text\n'
+                tail -c 8000 release/publish.log
+                printf '\n```\n'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          trap report_failure EXIT
           tag=$(cat release/tag.txt)
           title=$(cat release/title.txt)
           commit=$(python3 -c 'import json; print(json.load(open("source-run.json"))["head_sha"])')
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" --clobber 2>&1 | tee release/publish.log
           else
             gh release create "$tag" release/assets/* --repo "$GITHUB_REPOSITORY" \
-              --target "$commit" --title "$title" --notes-file release/notes.md
+              --target "$commit" --title "$title" --notes-file release/notes.md 2>&1 | tee release/publish.log
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
