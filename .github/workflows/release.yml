@@ -58,6 +58,9 @@ jobs:
           report_failure() {
             status=$?
             if [ "$status" -ne 0 ] && [ -f release/publish.log ]; then
+              message=$(tail -c 4000 release/publish.log | tr '\r\n' ' ')
+              message=${message//%/%25}
+              printf '::error::Release publication failed: %s\n' "$message"
               {
                 printf '\n### Release publication failed\n\n```text\n'
                 tail -c 8000 release/publish.log
