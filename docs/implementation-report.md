@@ -276,7 +276,7 @@ CONFIG_PACKAGE_openssh-sftp-server=y
 
 ### scripts/plugins-clone.sh
 
-```bash
+```text
 #!/usr/bin/env bash
 set -Eeuo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -448,6 +448,9 @@ fi
 if package_enabled luci-app-tailscale-community; then
   rm -rf feeds/luci/applications/luci-app-tailscale-community
   clone_repository https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community master package/luci-app-tailscale-community
+  tailscale_view=package/luci-app-tailscale-community/luci-app-tailscale-community/htdocs/luci-static/resources/view/tailscale.js
+  python3 "$PROJECT_ROOT/scripts/patch-tailscale-ui.py" "$tailscale_view"
+  node "$PROJECT_ROOT/scripts/check-tailscale-ui.js" "$tailscale_view"
 fi
 if package_enabled luci-app-dockerman; then
   rm -rf feeds/luci/applications/luci-app-dockerman
@@ -607,7 +610,7 @@ exit 0
 
 ### .github/workflows/build.yml
 
-```yaml
+```text
 name: 编译雅典娜固件（LibWrt / ImmortalWrt）
 
 on:
@@ -687,7 +690,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential clang flex bison gawk gettext git rsync unzip \
             libncurses-dev libssl-dev libelf-dev zlib1g-dev \
-            python3 python3-setuptools python3-dev swig wget curl file \
+            python3 python3-setuptools python3-dev nodejs swig wget curl file \
             zstd ccache shellcheck
           df -h .
       - name: Sync upstream and feeds (no compilation)

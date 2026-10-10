@@ -3,7 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential clang flex bison gawk gettext git rsync unzip \
     libncurses-dev libssl-dev libelf-dev zlib1g-dev \
-    python3 python3-setuptools python3-dev swig wget curl file \
+    python3 python3-setuptools python3-dev nodejs swig wget curl file \
     zstd ccache shellcheck ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 ARG BUILD_UID=1000

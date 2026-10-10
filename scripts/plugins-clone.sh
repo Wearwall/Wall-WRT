@@ -169,6 +169,9 @@ fi
 if package_enabled luci-app-tailscale-community; then
   rm -rf feeds/luci/applications/luci-app-tailscale-community
   clone_repository https://github.com/Tokisaki-Galaxy/luci-app-tailscale-community master package/luci-app-tailscale-community
+  tailscale_view=package/luci-app-tailscale-community/luci-app-tailscale-community/htdocs/luci-static/resources/view/tailscale.js
+  python3 "$PROJECT_ROOT/scripts/patch-tailscale-ui.py" "$tailscale_view"
+  node "$PROJECT_ROOT/scripts/check-tailscale-ui.js" "$tailscale_view"
 fi
 if package_enabled luci-app-dockerman; then
   rm -rf feeds/luci/applications/luci-app-dockerman

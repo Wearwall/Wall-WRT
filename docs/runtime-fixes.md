@@ -33,3 +33,13 @@
 ## 参考基线重构取代部分首启改动
 
 2026-10-10：用户要求直接基于 openwrt-ci-roc 的两个源码分支改造。本文此前的 network overlay、网络重建及 DHCP/disabled 首启写入不再用于新构建；详见 [参考基线说明](roc-baseline.md)。屏幕源码编译、Argon 与诊断命令继续保留。
+
+## Tailscale 社区界面 ReferenceError
+
+2026-10-10 实机反馈：打开 Tailscale 页面报 `lastDevicesStatus is not defined`。核查社区界面提交 `aefd8a337cbc3a1496270bf6c4a79e65ce92ff35`：严格模式下设备列表初始渲染和轮询赋值使用了未声明的 lastDevicesStatus，表头 peerTableHeaders 也未定义。
+
+共享插件准备脚本调用 `patch-tailscale-ui.py` 补齐模块级状态与八列标题；已存在定义时不会重复插入。保留 Tokisaki-Galaxy 社区界面、中文包及指南的 daemon 来源，不改变路由配置、登录方式或主题。
+
+`check-tailscale-ui.js` 加载真实上游界面，使用 LuCI 表单、DOM 和 RPC 模拟器执行初始渲染、设备轮询、筛选和刷新。原始源码重现 lastDevicesStatus 异常；只修第一个变量时重现 peerTableHeaders 异常；完整修正后两条分支的真实文件均通过测试，重复应用补丁无重复定义。每次克隆后执行相同检查，界面回归会在耗时编译前失败。CI 与 Docker 增加 Node.js 工具依赖。
+
+这是界面逻辑验证，未连接用户的路由器或实际 Tailnet。新固件刷入后需强制刷新浏览器，避免使用缓存的旧 tailscale.js。
