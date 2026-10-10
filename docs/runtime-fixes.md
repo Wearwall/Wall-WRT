@@ -59,3 +59,13 @@ HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-ho
 两条分支的真实上游启动脚本均成功应用补丁，重复应用不改变文件。隔离测试使用模拟下载和核心，验证 HTTP 成功但返回文本/YAML 时不覆盖缓存、有效 JSON 正常更新、解码/混入/格式化失败提前退出、正常路径继续。Shell 语法、仓库 ShellCheck、Python 语法与 actionlint 通过；这些检查不代表已在路由器上运行代理。
 
 现有设备可先在 HomeProxy 中选择主节点并保存应用；Momo 改用供应方提供的 sing-box 完整 JSON 配置订阅并重新更新，随后检查所选透明代理模式要求的入站。测试时一次只启用一个透明代理插件。Nikki RS 最近日志为 Disabled，若单独启用后仍退出，需要该次 app.log/core.log 才能定位。
+
+### HomeProxy DNS 兼容错误已定位
+
+后续用户确认已选择主节点，系统日志在 22:54–23:01 多次出现 `start dns/udp[default-dns]: detour to an empty direct outbound makes no sense`，随后 procd 报 crash loop。这确认启动配置的 DNS 兼容错误；此前 no main_node 输出只代表此前那次状态。当前诊断快照中运行文件不存在、服务没有实例，也不能单独用于判断主节点是否保存。
+
+生成器把 DNS 的 detour 指向只有 type/tag 的普通 direct 出口，新核心拒绝这个配置。新增 `patch-homeproxy-dns.py`，在清理空属性后，仅针对 sing-box 移除 DNS 指向这类普通 direct 出口的 detour。保留代理 DNS、带 mark/interface 等设置的直连出口、route.default_mark 和 hiddify 核心路径。
+
+下载官方 sing-box 1.14.3 Linux AMD64 构建并核对 GitHub 资产 SHA256，使用本机编译的真实 ucode 执行新增逻辑。最小原配置实际运行复现设备的 DNS fatal；修正后的配置正常启动。回归验证代理/带标记/绑定接口的 detour、default_mark 保留及重复转换不改变结果；双分支补丁幂等、Python/ShellCheck/actionlint 通过。此处是同版本核心的本机配置验证，不是用户设备的完整运行验证。
+
+日志还记录过 `unknown transport type: xhttp`：当前固件的 SagerNet sing-box 不支持该传输，不能通过修正 DNS 得到支持。应使用当前核心支持的节点传输，或另行选择确实支持 XHTTP 的核心；本次未更换共享核心或伪造传输类型。用户要求暂停 GitHub 构建，本次修正提交跳过 CI。
