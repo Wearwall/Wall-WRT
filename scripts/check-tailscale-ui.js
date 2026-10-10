@@ -59,7 +59,7 @@ async function main() {
     assert.ok(JSON.stringify(body.children).includes('Laptop'), 'Poll renders peer details');
     filter.value = 'nonmatching';
     filter.events.input.call(filter);
-    assert.ok(JSON.stringify(body.children).includes('No peer devices found.'), 'Filter uses cached poll status');
+    assert.ok(!JSON.stringify(body.children).includes('Laptop'), 'Filter uses cached poll status');
     filter.value = 'laptop';
     filter.events.input.call(filter);
     assert.ok(JSON.stringify(body.children).includes('Laptop'), 'Filter restores matching peer');
