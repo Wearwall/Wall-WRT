@@ -202,8 +202,8 @@ CONFIG_PACKAGE_xz-utils=y
 CONFIG_PACKAGE_luci-app-re-homeproxy=y
 CONFIG_PACKAGE_momo=y
 CONFIG_PACKAGE_luci-app-momo=y
-CONFIG_PACKAGE_clashoo=y
-CONFIG_PACKAGE_luci-app-clashoo=y
+# CONFIG_PACKAGE_clashoo is not set
+# CONFIG_PACKAGE_luci-app-clashoo is not set
 CONFIG_PACKAGE_nikki-rs=y
 CONFIG_PACKAGE_luci-app-nikki-rs=y
 CONFIG_PACKAGE_mihomo=y
@@ -339,6 +339,8 @@ printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 mkdir -p package
 # Clear previous generated links so removed/replaced packages cannot stay selected.
 rm -rf package/feeds
+# Clashoo is excluded: its virtual mihomo provider replaces FCHomo in APK.
+rm -rf package/openwrt-clashoo feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
 
 # Preserve the template's Go source. There is no effective CONFIG_GOLANG_VERSION_1_26 switch.
 clone_repository https://github.com/laipeng668/packages master package/wall-golang-source
@@ -407,7 +409,6 @@ for spec in \
   'luci-app-athena-led:package/luci-app-athena-led' \
   'luci-app-re-homeproxy:package/luci-app-re-homeproxy' \
   'momo,luci-app-momo:package/OpenWrt-momo' \
-  'clashoo,luci-app-clashoo:package/openwrt-clashoo' \
   'nikki-rs,luci-app-nikki-rs:package/OpenWrt-nikki-rs' \
   'mihomo,luci-app-fchomo:package/openwrt-fchomo' \
   'luci-app-adguardhome:package/luci-app-adguardhome' \
@@ -470,12 +471,6 @@ fi
 if package_enabled momo luci-app-momo; then
   rm -rf feeds/packages/net/momo feeds/luci/applications/luci-app-momo
   clone_repository https://github.com/nikkinikki-org/OpenWrt-momo main package/OpenWrt-momo
-fi
-if package_enabled clashoo luci-app-clashoo; then
-  rm -rf feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
-  clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
-  # Translation depends on the UI; the reverse dependency creates a Kconfig cycle.
-  sed -i 's/ +luci-i18n-clashoo-zh-cn//g' package/openwrt-clashoo/luci-app-clashoo/Makefile
 fi
 if package_enabled nikki-rs luci-app-nikki-rs; then
   rm -rf feeds/packages/net/nikki-rs feeds/luci/applications/luci-app-nikki-rs
@@ -995,7 +990,7 @@ import sys
 REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
-            'luci-app-re-homeproxy', 'momo', 'luci-app-momo', 'clashoo', 'luci-app-clashoo',
+            'luci-app-re-homeproxy', 'momo', 'luci-app-momo',
             'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
             'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}
 
@@ -1097,6 +1092,9 @@ def audit(config, packages, flavor):
                               if values.get(f"CONFIG_PACKAGE_{package}") != "y")
     if missing_required:
         raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
+    if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
+           for package in ("clashoo", "luci-app-clashoo")):
+        raise ValueError("Clashoo is excluded from Athena firmware")
     devices = selected_devices(values)
     if len(devices) != 1 or not all(is_athena(key) for key in devices):
         warnings.append(f"Selected devices must be Athena only: {devices}")
@@ -1163,8 +1161,13 @@ def network_patch(source):
     text = path.read_text()
     if not any(address in text for address in ("192.168.1.1", "192.168.2.1", "192.168.6.1")):
         raise ValueError("Upstream LAN default changed; inspect config_generate")
-    path.write_text(text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1"))
-    print(f"Default LAN source patched: {path.relative_to(source)}")
+    text = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
+    text, count = re.subn(r"(set system\.@system\[-1\]\.hostname=)'[^']*'",
+                         r"\1'Wall-WRT'", text)
+    if count != 1:
+        raise ValueError("Upstream default hostname layout changed; inspect config_generate")
+    path.write_text(text)
+    print(f"Default hostname/LAN source patched: {path.relative_to(source)}")
 
 
 def lock(source, destination, flavor):
@@ -1193,6 +1196,9 @@ def lock(source, destination, flavor):
 
 def artifacts(source, output, flavor):
     values = assignments(source / ".config")
+    if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
+           for package in ("clashoo", "luci-app-clashoo")):
+        raise ValueError("Clashoo is excluded from Athena firmware")
     devices = selected_devices(values)
     if len(devices) != 1 or not is_athena(devices[0]) or values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
         raise ValueError("Refusing artifacts: final configuration is not Athena only")

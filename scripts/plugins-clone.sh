@@ -60,6 +60,8 @@ printf 'Repository\tBranch\tCommit\n' > "$THIRD_PARTY_SOURCES_FILE"
 mkdir -p package
 # Clear previous generated links so removed/replaced packages cannot stay selected.
 rm -rf package/feeds
+# Clashoo is excluded: its virtual mihomo provider replaces FCHomo in APK.
+rm -rf package/openwrt-clashoo feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
 
 # Preserve the template's Go source. There is no effective CONFIG_GOLANG_VERSION_1_26 switch.
 clone_repository https://github.com/laipeng668/packages master package/wall-golang-source
@@ -128,7 +130,6 @@ for spec in \
   'luci-app-athena-led:package/luci-app-athena-led' \
   'luci-app-re-homeproxy:package/luci-app-re-homeproxy' \
   'momo,luci-app-momo:package/OpenWrt-momo' \
-  'clashoo,luci-app-clashoo:package/openwrt-clashoo' \
   'nikki-rs,luci-app-nikki-rs:package/OpenWrt-nikki-rs' \
   'mihomo,luci-app-fchomo:package/openwrt-fchomo' \
   'luci-app-adguardhome:package/luci-app-adguardhome' \
@@ -191,12 +192,6 @@ fi
 if package_enabled momo luci-app-momo; then
   rm -rf feeds/packages/net/momo feeds/luci/applications/luci-app-momo
   clone_repository https://github.com/nikkinikki-org/OpenWrt-momo main package/OpenWrt-momo
-fi
-if package_enabled clashoo luci-app-clashoo; then
-  rm -rf feeds/packages/net/clashoo feeds/luci/applications/luci-app-clashoo
-  clone_repository https://github.com/kenzok8/openwrt-clashoo main package/openwrt-clashoo
-  # Translation depends on the UI; the reverse dependency creates a Kconfig cycle.
-  sed -i 's/ +luci-i18n-clashoo-zh-cn//g' package/openwrt-clashoo/luci-app-clashoo/Makefile
 fi
 if package_enabled nikki-rs luci-app-nikki-rs; then
   rm -rf feeds/packages/net/nikki-rs feeds/luci/applications/luci-app-nikki-rs

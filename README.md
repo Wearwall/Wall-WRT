@@ -21,7 +21,7 @@
 | 登录用户名 | root |
 | 密码 / WiFi 加密 | 沿用上游默认，本仓库不写密码，首次登录请设置 |
 
-LAN 默认地址仅在上游 `package/base-files/files/bin/config_generate` 中改为 `192.168.6.1`；不预置 network、不在首启重建网络。网桥、WAN、DHCP、无线激活、信道及国家码沿用参考分支默认逻辑，首启脚本只设置 SSID。
+默认主机名为 `Wall-WRT`；LAN 默认地址仅在上游 `package/base-files/files/bin/config_generate` 中改为 `192.168.6.1`；不预置 network、不在首启重建网络。网桥、WAN、DHCP、无线激活、信道及国家码沿用参考分支默认逻辑，首启脚本只设置 SSID。
 
 SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 识别 2g、两条 5g 按信道排序（auto 时按硬件 path 排序），不写死 radio 编号。脚本不写加密、密码、信道或 disabled，无无线设备时返回失败以便下次开机重试，应用后保存标记，保留配置的升级不会重置个人设置。
 
@@ -34,7 +34,6 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 
 | 商城 | iStore | linkease/istore（main） | 顶级「商店」 |
 | VPN | RE:HomeProxy | 1andrevich/homeproxy-hiddify | 原生（服务） |
 | VPN | momo | nikkinikki-org/OpenWrt-momo | 原生 |
-| VPN | Clashoo | kenzok8/openwrt-clashoo | 原生 |
 | VPN | Nikki RS | CHKayanami/OpenWrt-nikki-rs | 原生 |
 | VPN | FullCombo Shark | fcshark-org/openwrt-fchomo | 原生 |
 | VPN | OpenClash | vernesong/OpenClash | 原生 |

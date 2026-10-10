@@ -15,7 +15,7 @@
 
 ## 保留的指南功能
 
-- Tailscale 与 community UI、Cloudflared、Re:HomeProxy、Momo、Clashoo、NikkiRS、FCHomo/Mihomo。
+- Tailscale 与 community UI、Cloudflared、Re:HomeProxy、Momo、NikkiRS、FCHomo/Mihomo。
 - OpenClash、Passwall、Passwall2。
 - rufengsuixing 的 AdGuardHome Lua UI；核心仍按该 UI 原有流程安装。
 - Docker、docker-compose、lisaac 的经典 Lua Dockerman 与独立 luci-lib-docker。
@@ -26,7 +26,7 @@
 
 ## 网络初始化改动
 
-删除局部 `/etc/config/network` overlay 和 `00-athena-network-merge`，生成目录中残留的同名文件也清除。取消首启脚本改写 DHCP、强制无线启用及额外重载。网桥、WAN、DHCP、无线启用、信道、带宽、国家码沿用参考分支的设备初始化逻辑。只在上游 `package/base-files/files/bin/config_generate` 修改默认 LAN 地址为 `192.168.6.1`；首启脚本仅配置 Wall / Wall-5G / Wall-6E SSID，并在保留配置升级时尊重用户设置。Wall-6E 只是原有 SSID 名称，不代表该无线电支持 6 GHz。
+删除局部 `/etc/config/network` overlay 和 `00-athena-network-merge`，生成目录中残留的同名文件也清除。取消首启脚本改写 DHCP、强制无线启用及额外重载。网桥、WAN、DHCP、无线启用、信道、带宽、国家码沿用参考分支的设备初始化逻辑。只在上游 `package/base-files/files/bin/config_generate` 修改默认主机名为 `Wall-WRT`，默认 LAN 地址为 `192.168.6.1`；首启脚本仅配置 Wall / Wall-5G / Wall-6E SSID，并在保留配置升级时尊重用户设置。Wall-6E 只是原有 SSID 名称，不代表该无线电支持 6 GHz。
 
 这是针对已确认的源码差异和额外初始化覆盖作出的修正。缺少设备运行日志与实机，不能据此断言 DHCP、网口或高频无线故障已彻底解决。新固件继续包含只读 `athena-wifi-diagnose` 命令，方便后续实机定位。
 
@@ -50,3 +50,13 @@ feeds 的 jool/openvswitch 元数据有上游 `kmod-nf-conntrack6` 缺失警告�
 以上为源码/配置与脚本验证，不等同于完整固件编译或实机验证。实际编译由 GitHub Actions 执行，成功后按原规则自动发布。
 
 本次改造提交：`c1d42df`；双分支构建：[GitHub Actions 38008436292](https://github.com/Wearwall/Wall-WRT/actions/runs/38008436292)。该链接用于核对本次实际编译与自动发布结果。
+
+## 2026-10-10 构建末尾失败与修正
+
+构建 `38008436292` 的两条分支均完成 make 并生成 factory/sysupgrade 镜像，随后产物检查报 `Required runtime packages missing: ['mihomo']`。Clashoo 的 Makefile 声明 `PROVIDES:=mihomo clash-meta`；APK 安装阶段可以用它满足 FCHomo 的 mihomo 依赖，因此配置里 mihomo=y 并不保证独立核心进入镜像。检查阻止了自动发布这次产物。
+
+按用户新要求，彻底排除 Clashoo 核心与界面：配置禁用、删除克隆步骤、清理生成源码及 feed 残留，配置和产物检查拒绝 Clashoo。保留原始 FCHomo/mihomo 的源码和严格 manifest 检查。两条真实源码重新 defconfig 和审计通过，唯一 mihomo 提供者为独立核心。
+
+Tailscale 界面核验：`Tokisaki-Galaxy/luci-app-tailscale-community` / master，核验提交 `aefd8a337cbc3a1496270bf6c4a79e65ce92ff35`；`luci-app-tailscale-community` 及 zh-cn 中文包均 built-in。daemon 来自指南的 `whzhni1/luci-app-tailscale` / main 中 tailscale 子目录，核验提交 `c45e596f028d0e95bdda4803f79f5e3c633814dd`。未选用普通 luci-app-tailscale。
+
+默认值确认：主机名 `Wall-WRT`、LAN `192.168.6.1`、2.4G / 低频5G / 高频5G SSID 依次为 `Wall` / `Wall-5G` / `Wall-6E`。不增加首启网络重建或无线重载。

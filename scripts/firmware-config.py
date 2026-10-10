@@ -12,7 +12,7 @@ import sys
 REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
-            'luci-app-re-homeproxy', 'momo', 'luci-app-momo', 'clashoo', 'luci-app-clashoo',
+            'luci-app-re-homeproxy', 'momo', 'luci-app-momo',
             'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
             'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}
 
@@ -114,6 +114,9 @@ def audit(config, packages, flavor):
                               if values.get(f"CONFIG_PACKAGE_{package}") != "y")
     if missing_required:
         raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
+    if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
+           for package in ("clashoo", "luci-app-clashoo")):
+        raise ValueError("Clashoo is excluded from Athena firmware")
     devices = selected_devices(values)
     if len(devices) != 1 or not all(is_athena(key) for key in devices):
         warnings.append(f"Selected devices must be Athena only: {devices}")
@@ -180,8 +183,13 @@ def network_patch(source):
     text = path.read_text()
     if not any(address in text for address in ("192.168.1.1", "192.168.2.1", "192.168.6.1")):
         raise ValueError("Upstream LAN default changed; inspect config_generate")
-    path.write_text(text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1"))
-    print(f"Default LAN source patched: {path.relative_to(source)}")
+    text = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
+    text, count = re.subn(r"(set system\.@system\[-1\]\.hostname=)'[^']*'",
+                         r"\1'Wall-WRT'", text)
+    if count != 1:
+        raise ValueError("Upstream default hostname layout changed; inspect config_generate")
+    path.write_text(text)
+    print(f"Default hostname/LAN source patched: {path.relative_to(source)}")
 
 
 def lock(source, destination, flavor):
@@ -210,6 +218,9 @@ def lock(source, destination, flavor):
 
 def artifacts(source, output, flavor):
     values = assignments(source / ".config")
+    if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
+           for package in ("clashoo", "luci-app-clashoo")):
+        raise ValueError("Clashoo is excluded from Athena firmware")
     devices = selected_devices(values)
     if len(devices) != 1 or not is_athena(devices[0]) or values.get("CONFIG_TARGET_MULTI_PROFILE") == "y":
         raise ValueError("Refusing artifacts: final configuration is not Athena only")
