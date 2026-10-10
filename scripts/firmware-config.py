@@ -9,6 +9,13 @@ import subprocess
 import sys
 
 
+REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
+            'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
+            'kmod-br-netfilter', 'kmod-veth', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
+            'luci-app-re-homeproxy', 'momo', 'luci-app-momo', 'clashoo', 'luci-app-clashoo',
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
+            'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}
+
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
 
@@ -100,7 +107,13 @@ def audit(config, packages, flavor):
     values = assignments(config)
     expected = assignments(packages)
     warnings = [f"{key}=y (missing or not built-in)" for key, value in expected.items()
-                if key.startswith("CONFIG_PACKAGE_") and value == "y" and values.get(key) != "y"]
+                if key.startswith("CONFIG_PACKAGE_") and value == "y" and values.get(key) != "y"
+                and not (key.startswith("CONFIG_PACKAGE_luci-i18n-") and key.endswith("-zh_Hans")
+                         and values.get(key.removesuffix("-zh_Hans") + "-zh-cn") == "y")]
+    missing_required = sorted(package for package in REQUIRED_PACKAGES
+                              if values.get(f"CONFIG_PACKAGE_{package}") != "y")
+    if missing_required:
+        raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
     devices = selected_devices(values)
     if len(devices) != 1 or not all(is_athena(key) for key in devices):
         warnings.append(f"Selected devices must be Athena only: {devices}")
@@ -110,8 +123,6 @@ def audit(config, packages, flavor):
                 "CONFIG_DOCKER_CGROUP_OPTIONS", "CONFIG_PACKAGE_kmod-br-netfilter"):
         if values.get(key) != "y":
             warnings.append(f"Docker prerequisite missing: {key}")
-    if values.get("CONFIG_KERNEL_BRIDGE_NETFILTER") != "y":
-        warnings.append("CONFIG_KERNEL_BRIDGE_NETFILTER is absent; check kernel config via kmod-br-netfilter")
     for key, value in flavor_requirements(flavor).items():
         if values.get(key, "n") != value:
             warnings.append(f"{flavor} requires {key}={value}")
@@ -165,17 +176,12 @@ def i18n(source):
 
 
 def network_patch(source):
-    paths = [path for path in source.rglob("config_generate") if path.is_file()]
-    if not paths:
-        raise ValueError("No config_generate found; inspect upstream base-files layout")
-    for path in paths:
-        text = path.read_text()
-        changed = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
-        if changed != text:
-            path.write_text(changed)
-        print(f"Default LAN source inspected/patched: {path.relative_to(source)}")
-    if any("192.168.1.1" in path.read_text() for path in paths):
-        raise ValueError("Old LAN default remains in config_generate")
+    path = source / "package/base-files/files/bin/config_generate"
+    text = path.read_text()
+    if not any(address in text for address in ("192.168.1.1", "192.168.2.1", "192.168.6.1")):
+        raise ValueError("Upstream LAN default changed; inspect config_generate")
+    path.write_text(text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1"))
+    print(f"Default LAN source patched: {path.relative_to(source)}")
 
 
 def lock(source, destination, flavor):
@@ -221,13 +227,15 @@ def artifacts(source, output, flavor):
         raise ValueError(f"Unexpected non-Athena images: {other}")
     if not any("sysupgrade" in path.name and path.stat().st_size for path in images):
         raise ValueError("No nonempty Athena sysupgrade image was generated")
+    if not any("factory" in path.name and path.stat().st_size for path in images):
+        raise ValueError("No nonempty Athena factory image was generated")
     if any(not path.stat().st_size for path in images):
         raise ValueError("An Athena image is empty")
     manifests = list(target.glob("*.manifest"))
     if not manifests:
         raise ValueError("No firmware manifest was generated")
     installed = {line.split()[0] for path in manifests for line in path.read_text().splitlines() if line.strip()}
-    required = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led'}
+    required = REQUIRED_PACKAGES
     if not required <= installed:
         raise ValueError(f"Required runtime packages missing: {sorted(required - installed)}")
     missing = [key.removeprefix("CONFIG_PACKAGE_") for key, value in values.items()

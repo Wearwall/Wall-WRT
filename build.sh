@@ -32,20 +32,22 @@ build_one() {
     sed -i 's/_("iStore")/_("商店")/g' "$store_controller"
   fi
   bash "$PROJECT_ROOT/scripts/Roc-script.sh"
-  cat "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
+  cat "$BASE_CONFIG" "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
   # A cached tmp must not retain metadata for replaced plugin/source definitions.
   rm -f tmp/.config-target.in tmp/.targetinfo tmp/.config-package.in tmp/.packageinfo
   # First defconfig generates upstream's target metadata; no compilation occurs.
   make defconfig
   # Discard any default profile/packages selected while the candidate spelling
   # was unresolved; seed the final configuration again from declared inputs.
-  cat "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
+  cat "$BASE_CONFIG" "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
   python3 "$PROJECT_ROOT/scripts/firmware-config.py" select-device .config tmp/.config-target.in
   make defconfig
   bash "$PROJECT_ROOT/scripts/gen-i18n.sh"
   make defconfig
   python3 "$PROJECT_ROOT/scripts/firmware-config.py" audit .config "$PACKAGES_FILE" "$FLAVOR" | tee config-audit.txt
-  # Merge overlay; the first-boot merger retains upstream hardware interface defaults.
+  # Keep upstream network generation; overlay contains only UI/SSID defaults.
+  # Remove files installed by earlier versions in this generated checkout.
+  rm -f files/etc/config/network files/etc/uci-defaults/00-athena-network-merge
   mkdir -p files
   cp -a "$PROJECT_ROOT/files/." files/
   # Do not reuse yesterday's images if today's compilation fails or changes target.

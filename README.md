@@ -6,7 +6,7 @@
 
 | FLAVOR | 仓库 | 跟踪分支 | 包格式 | 内核 / NSS | WiFi offload |
 |---|---|---|---|---|---|
-| libwrt | LiBwrt/LibWrt | 25.12-nss | apk | NSS 11.4 | 开启（ATH11K_NSS_SUPPORT） |
+| libwrt | laipeng668/openwrt-6.x | 25.12-nss | apk | NSS 11.4 | 开启（ATH11K_NSS_SUPPORT） |
 | immortalwrt | laipeng668/immortalwrt | openwrt-25.12 | apk | 测试内核 6.18 + NSS 12.5 | 关闭（IPQ60xx 的 NSS 12.5 不提供 WiFi offload，走正常 ath11k） |
 
 两者均已包含 RE-CS-02 的镜像、设备树、网口、无线校准数据与 eMMC 升级集成。构建在 feeds 下载前静态检查雅典娜源码集成，上游若删除支持会提前报错；缺少生成的 Kconfig profile 时拒绝编译其他机型。
@@ -21,7 +21,7 @@
 | 登录用户名 | root |
 | 密码 / WiFi 加密 | 沿用上游默认，本仓库不写密码，首次登录请设置 |
 
-LAN 三处冗余：构建时替换 config_generate 中的旧地址、overlay 提供完整静态 LAN 段、99 首刷脚本再次 UCI 写入。单独预置 network 会挡住上游生成网桥/WAN，故新增 00 脚本——仅当发现本仓库 overlay 标记时，先重新生成上游硬件默认网络，再用 `uci import -m` 合并 LAN 配置，保留其余段；用户恢复旧配置后无标记，不会被重置。
+LAN 默认地址仅在上游 `package/base-files/files/bin/config_generate` 中改为 `192.168.6.1`；不预置 network、不在首启重建网络。网桥、WAN、DHCP、无线激活、信道及国家码沿用参考分支默认逻辑，首启脚本只设置 SSID。
 
 SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 识别 2g、两条 5g 按信道排序（auto 时按硬件 path 排序），不写死 radio 编号。脚本不写加密、密码、信道或 disabled，无无线设备时返回失败以便下次开机重试，应用后保存标记，保留配置的升级不会重置个人设置。
 
@@ -87,7 +87,7 @@ dmesg | grep -iE 'nss|ath11k'
 源码位于 `sources/<flavor>/`，每次执行会 fetch + `reset --hard` 到跟踪分支最新提交——这是专用生成目录，不要把 SOURCE_ROOT 指向有个人修改的源码目录，也不要在其中保存个人 feed 修改。详细构建命令、缓存策略、静态自检脚本见仓库 README。
 
 ## 感谢上游各位大神
-https://github.com/LiBwrt/LibWrt       ##上游WRT分支  
+https://github.com/laipeng668/openwrt-6.x       ##上游WRT分支
 https://github.com/fishand73/JDBoxFlashTool   ##刷机uBoot工具   
 https://github.com/laipeng668/openwrt-ci-roc   ##基于构建服务修改
 
@@ -97,4 +97,6 @@ https://github.com/laipeng668/openwrt-ci-roc   ##基于构建服务修改
 
 ## 实机反馈修复
 
-屏幕控制、Argon 默认主题及设置、首次无线/DHCP 配置修复见 [实机反馈修复记录](docs/runtime-fixes.md)。无线启动停滞与 DHCP 无租约仍需设备日志定位；新固件包含 `athena-wifi-diagnose` 诊断命令。
+屏幕控制、Argon 默认主题及设置、此前无线/DHCP 排查记录见 [实机反馈修复记录](docs/runtime-fixes.md)。无线启动停滞与 DHCP 无租约仍需设备日志定位；新固件包含 `athena-wifi-diagnose` 诊断命令。
+
+当前两条分支基于参考仓库改造，配置合并顺序、保留插件和验证结果见 [参考基线改造说明](docs/roc-baseline.md)。

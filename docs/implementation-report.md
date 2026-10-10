@@ -1,4 +1,7 @@
 # 雅典娜双分支改造交付记录
+
+2026-10-10 当前基线：两条源码均采用 openwrt-ci-roc 对应 fork，共用其 General.config 快照；移除网络 overlay/重建及首启 DHCP、无线 disabled 改写。详见 [当前基线说明](roc-baseline.md)。下文最初交付背景保留作历史记录，代码快照按本次改造更新。
+
 本次工作目录 `/workspace/Wall-WRT`；初始改造仅执行静态检查，用户随后授权的真实 GitHub 双分支编译已成功，记录见 [实际构建记录](build-attempts.md)。没有刷机。初次改造已同步到 GitHub；本次参考仓库的 ImmortalWrt 修复也以独立提交同步。云环境安装脚本与启动说明草稿已更新，保存不代表发布。
 **设备定义阻塞已修复：ImmortalWrt 改用参考 openwrt-ci-roc 的 laipeng668 fork / openwrt-25.12，选择测试内核和 NSS 12.5，并关闭 WiFi NSS；不再使用缺少雅典娜的官方稳定分支。设备树/镜像/网口/校准/eMMC 静态检查通过，后续真实双分支编译已成功，实机仍未验证。详见 [修复记录](immortalwrt-fix.md)。**
 
@@ -14,12 +17,12 @@
 | `scripts/plugins-clone.sh` | 新增 | 自己实现 package_enabled/clone_repository，按指定源码 clone、原位替换、独立库布局/APK 版本处理与 runc 修复。 |
 | `scripts/sync-upstream.sh` | 新增 | 只同步源码/feeds，打印短 SHA，更新 lock；不编译、不自动提交/推送。 |
 | `scripts/gen-i18n.sh` | 新增 | 无硬编码应用清单，调用实际源码 Po/Makefile 扫描。 |
-| `scripts/firmware-config.py` | 新增 | 源码预检、设备符号解析、缺包警告、语言别名、动态 LAN 路径、lock 与各 flavor 内核/NSS 产物校验。 |
-| `scripts/Roc-script.sh` | 修改 | 保留原定制入口，插件逻辑移入共用脚本；LAN patch 不再固定 base-files 路径或旧 IP。 |
+| `scripts/firmware-config.py` | 新增 | 源码预检、设备符号解析、缺包警告、语言别名、上游固定 LAN 路径、lock 与各 flavor 内核/NSS 产物校验。 |
+| `scripts/Roc-script.sh` | 修改 | 保留原定制入口，插件逻辑移入共用脚本；仅在上游 base-files/config_generate 修改默认 LAN 地址。 |
 | `scripts/SDK-script.sh` | 修改 | 手动 SDK 工具保留；默认目标改为 qualcommax/ipq60xx，去掉其他设备 profile 和不存在的 x86 config 引用，处理两条 ShellCheck 提示；签名校验不变。 |
-| `files/etc/config/network` | 新增 | 完整静态 LAN 段写入 192.168.6.1/24；标记供硬件配置合并脚本识别。 |
-| `files/etc/uci-defaults/00-athena-network-merge` | 新增 | 首刷先生成上游网桥/WAN/loopback，再合并 LAN；升级用户配置无标记则保留。 |
-| `files/etc/uci-defaults/99-athena-defaults` | 新增 | LAN 兜底与按 band/channel/path 处理三频 SSID；不写密码/加密，wifi reload，保留升级设置。 |
+| `files/etc/config/network` | 删除 | 使用上游生成的完整硬件网络。 |
+| `files/etc/uci-defaults/00-athena-network-merge` | 删除 | 取消首启重建网络。 |
+| `files/etc/uci-defaults/99-athena-defaults` | 新增 | 仅按 band/channel/path 设置 SSID，保留上游网络与无线默认逻辑。 |
 | `.github/workflows/build.yml` | 新增 | 单一固件入口，手动/push/每日、双线独立矩阵、dl/tmp/ccache 缓存、带日期 artifact 和失败日志。 |
 | `Dockerfile` | 新增 | 可选 Linux 非 root 编译环境，仅静态读取，本次没有构建镜像。 |
 | `docker-compose.yml` | 新增 | 挂载当前目录、flavor/jobs 与 UID/GID 配置；只验证 compose 语法。 |
@@ -158,7 +161,7 @@ LAN 查询在脚本中找到的旧地址仅为替换/残留检查的匹配字符
 
 ```text
 # Plain key=value; scripts/common.sh reads this file without executing it.
-libwrt_repo=https://github.com/LiBwrt/LibWrt.git
+libwrt_repo=https://github.com/laipeng668/openwrt-6.x.git
 libwrt_branch=25.12-nss
 libwrt_package_manager=apk
 libwrt_device_config=configs/device.config
@@ -265,6 +268,10 @@ CONFIG_PACKAGE_nano-full=y
 CONFIG_PACKAGE_fdisk=y
 CONFIG_PACKAGE_fstrim=y
 CONFIG_PACKAGE_openssh-sftp-server=y
+
+# Argon is the requested default; override the reference Aurora selection.
+# CONFIG_PACKAGE_luci-theme-aurora is not set
+# CONFIG_PACKAGE_luci-app-aurora-config is not set
 ```
 
 ### scripts/plugins-clone.sh
@@ -276,6 +283,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TARGETS_CONF="${TARGETS_CONF:-$PROJECT_ROOT/configs/targets.conf}"
 FLAVOR="${FLAVOR:-libwrt}"
 PACKAGES_FILE="${PACKAGES_FILE:-$PROJECT_ROOT/$(awk -F= -v key="${FLAVOR}_packages" '$1 == key {print $2}' "$TARGETS_CONF")}"
+BASE_CONFIG="${BASE_CONFIG:-$PROJECT_ROOT/configs/roc-base.config}"
 THIRD_PARTY_SOURCES_FILE="${THIRD_PARTY_SOURCES_FILE:-$PWD/third-party-sources.txt}"
 if [ ! -f scripts/feeds ] || [ ! -f "$PACKAGES_FILE" ]; then
   echo 'Error: run inside a source tree with a valid packages list' >&2
@@ -290,7 +298,7 @@ package_enabled() {
       $0 == symbol "=y" { selected = 1 }
       $0 == symbol "=n" || $0 == symbol "=m" || $0 == "# " symbol " is not set" { selected = 0 }
       END { exit(selected ? 0 : 1) }
-    ' "$PACKAGES_FILE"; then return 0; fi
+    ' "$BASE_CONFIG" "$PACKAGES_FILE"; then return 0; fi
   done
   return 1
 }
@@ -343,7 +351,55 @@ if [ ! -f package/wall-golang-source/lang/golang/golang-package.mk ] || \
 fi
 rm -rf feeds/packages/lang/golang
 mv package/wall-golang-source/lang/golang feeds/packages/lang/golang
+if package_enabled luci-app-ddns ddns-scripts-cloudflare; then
+  rm -rf feeds/packages/net/ddns-scripts
+  mv package/wall-golang-source/net/ddns-scripts feeds/packages/net/ddns-scripts
+fi
 rm -rf package/wall-golang-source
+
+# Match the reference utility sources, alongside the guide's plugin overrides.
+replace_feed_paths() {
+  local repository="$1" branch="$2" feed="$3" path
+  shift 3
+  clone_repository "$repository" "$branch" package/wall-reference-feed
+  for path in "$@"; do
+    [ -f "package/wall-reference-feed/$path/Makefile" ] || {
+      echo "Error: reference feed layout changed: $repository $path" >&2; return 1;
+    }
+    rm -rf "feeds/$feed/$path"
+    mkdir -p "feeds/$feed/$(dirname "$path")"
+    mv "package/wall-reference-feed/$path" "feeds/$feed/$path"
+  done
+  rm -rf package/wall-reference-feed
+}
+if package_enabled luci-app-ddns; then
+  replace_feed_paths https://github.com/laipeng668/luci master luci applications/luci-app-ddns
+fi
+if package_enabled luci-app-frpc luci-app-frps; then
+  replace_feed_paths https://github.com/laipeng668/packages frp-binary packages net/frp
+  frp_paths=()
+  for app in frpc frps; do
+    if package_enabled "luci-app-$app"; then frp_paths+=("applications/luci-app-$app"); fi
+  done
+  replace_feed_paths https://github.com/laipeng668/luci frp luci "${frp_paths[@]}"
+  for path in "${frp_paths[@]}"; do sed -i '/^LUCI_EXTRA_DEPENDS:=/d' "feeds/luci/$path/Makefile"; done
+fi
+if package_enabled luci-app-upnp; then
+  replace_feed_paths https://github.com/immortalwrt/packages master packages net/miniupnpd
+fi
+utility_paths=()
+for app in upnp wol; do
+  if package_enabled "luci-app-$app"; then utility_paths+=("applications/luci-app-$app"); fi
+done
+if [ "${#utility_paths[@]}" -gt 0 ]; then
+  replace_feed_paths https://github.com/immortalwrt/luci master luci "${utility_paths[@]}"
+fi
+if package_enabled luci-theme-argon luci-app-argon-config; then
+  clone_repository https://github.com/jerrykuku/luci-theme-argon master feeds/luci/themes/luci-theme-argon
+fi
+if package_enabled luci-app-argon-config; then
+  clone_repository https://github.com/jerrykuku/luci-app-argon-config master feeds/luci/applications/luci-app-argon-config
+fi
 
 # Disabled plugins must not survive a repeated build's previous clones.
 for spec in \
@@ -498,48 +554,15 @@ python3 "$SCRIPT_ROOT/firmware-config.py" i18n "${1:-$PWD}"
 
 ### files/etc/config/network
 
-```text
-# WALL_ATHENA_LAN_OVERLAY
-# Only LAN overrides live here. 00-athena-network-merge regenerates hardware
-# defaults first, then merges this section, preserving bridges/WAN/loopback.
-config interface 'lan'
-        option proto 'static'
-        option ipaddr '192.168.6.1'
-        option netmask '255.255.255.0'
-```
+本次参考基线改造已删除此文件，网络由上游设备初始化生成。
 
 ### files/etc/uci-defaults/00-athena-network-merge
 
-```bash
-#!/bin/sh
-# Existing sysupgrade configuration has no overlay marker and is preserved.
-grep -q '^# WALL_ATHENA_LAN_OVERLAY$' /etc/config/network || exit 0
-backup="$(mktemp /tmp/athena-network.XXXXXX)" || exit 1
-cp /etc/config/network "$backup" || exit 1
-rm /etc/config/network
-if ! /bin/config_generate || ! uci -q get network.lan >/dev/null; then
-        cp "$backup" /etc/config/network
-        rm -f "$backup"
-        exit 1
-fi
-# Set only LAN address options; never re-import a partial interface section
-# over the generated br-lan device and its four hardware ports.
-if [ "$(uci -q get network.lan.device)" = br-lan ] &&
-        uci set network.lan.proto='static' &&
-        uci set network.lan.ipaddr='192.168.6.1' &&
-        uci set network.lan.netmask='255.255.255.0' &&
-        uci commit network; then
-        rm -f "$backup"
-        exit 0
-fi
-cp "$backup" /etc/config/network
-rm -f "$backup"
-exit 1
-```
+本次参考基线改造已删除此文件，网络由上游设备初始化生成。
 
 ### files/etc/uci-defaults/99-athena-defaults
 
-```bash
+```text
 #!/bin/sh
 SSID_2G='Wall'
 SSID_5G_LOW='Wall-5G'
@@ -547,22 +570,6 @@ SSID_5G_HIGH='Wall-6E'
 
 # On upgrades retaining settings, leave the user's working configuration intact.
 [ -e /etc/config/.athena-defaults-applied ] && exit 0
-if uci set network.lan.ipaddr='192.168.6.1' && uci commit network; then
-        :
-else
-        exit 1
-fi
-
-# Establish DHCP on the initial router setup, preserving upgrade/AP settings.
-uci -q get dhcp.lan >/dev/null || uci set dhcp.lan='dhcp' || exit 1
-uci set dhcp.lan.interface='lan' || exit 1
-uci set dhcp.lan.start='100' || exit 1
-uci set dhcp.lan.limit='150' || exit 1
-uci set dhcp.lan.leasetime='12h' || exit 1
-uci set dhcp.lan.ignore='0' || exit 1
-uci set 'dhcp.@dnsmasq[0].authoritative=1' || exit 1
-uci commit dhcp || exit 1
-
 # boot normally generates wireless before running uci-defaults. Retry on next
 # boot when no radios exist yet, rather than consuming the one-shot defaults.
 radios="$(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-device$/\1/p')"
@@ -595,15 +602,11 @@ for interface in $interfaces; do
                 *) continue ;;
         esac
         uci set "wireless.$interface.ssid=$ssid" || exit 1
-        # Only the initial factory setup reaches here; retained user settings
-        # are protected by the marker at the top of this script.
-        uci set "wireless.$interface.disabled=0" || exit 1
-        uci set "wireless.$radio.disabled=0" || exit 1
 done
 uci commit wireless || exit 1
 # Persistent marker is included by sysupgrade's /etc/config preservation.
 touch /etc/config/.athena-defaults-applied
-# Network startup follows uci-defaults; avoid a competing wireless reload here.
+# Leave activation, channels, country, bridge and DHCP to upstream defaults.
 exit 0
 ```
 
@@ -788,20 +791,22 @@ build_one() {
     sed -i 's/_("iStore")/_("商店")/g' "$store_controller"
   fi
   bash "$PROJECT_ROOT/scripts/Roc-script.sh"
-  cat "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
+  cat "$BASE_CONFIG" "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
   # A cached tmp must not retain metadata for replaced plugin/source definitions.
   rm -f tmp/.config-target.in tmp/.targetinfo tmp/.config-package.in tmp/.packageinfo
   # First defconfig generates upstream's target metadata; no compilation occurs.
   make defconfig
   # Discard any default profile/packages selected while the candidate spelling
   # was unresolved; seed the final configuration again from declared inputs.
-  cat "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
+  cat "$BASE_CONFIG" "$DEVICE_CONFIG" "$EXTRA_CONFIG" "$PACKAGES_FILE" > .config
   python3 "$PROJECT_ROOT/scripts/firmware-config.py" select-device .config tmp/.config-target.in
   make defconfig
   bash "$PROJECT_ROOT/scripts/gen-i18n.sh"
   make defconfig
   python3 "$PROJECT_ROOT/scripts/firmware-config.py" audit .config "$PACKAGES_FILE" "$FLAVOR" | tee config-audit.txt
-  # Merge overlay; the first-boot merger retains upstream hardware interface defaults.
+  # Keep upstream network generation; overlay contains only UI/SSID defaults.
+  # Remove files installed by earlier versions in this generated checkout.
+  rm -f files/etc/config/network files/etc/uci-defaults/00-athena-network-merge
   mkdir -p files
   cp -a "$PROJECT_ROOT/files/." files/
   # Do not reuse yesterday's images if today's compilation fails or changes target.
@@ -860,7 +865,7 @@ CONFIG_CCACHE=y
 CONFIG_LUCI_LANG_zh_Hans=y
 CONFIG_KERNEL_CGROUPS=y
 CONFIG_KERNEL_CGROUP_FREEZER=y
-CONFIG_KERNEL_BRIDGE_NETFILTER=y
+# kmod-br-netfilter supplies CONFIG_BRIDGE_NETFILTER in the kernel config.
 CONFIG_DOCKER_CGROUP_OPTIONS=y
 ```
 
@@ -922,10 +927,11 @@ load_target() {
   DEVICE_CONFIG="$PROJECT_ROOT/$(target_value "${FLAVOR}_device_config")"
   PACKAGES_FILE="$PROJECT_ROOT/$(target_value "${FLAVOR}_packages")"
   EXTRA_CONFIG="$PROJECT_ROOT/$(target_value "${FLAVOR}_extra_config")"
+  BASE_CONFIG="$PROJECT_ROOT/configs/roc-base.config"
   SOURCE_DIR="$SOURCE_ROOT/$FLAVOR"
-  export FLAVOR PROJECT_ROOT PACKAGES_FILE TARGETS_CONF
+  export FLAVOR PROJECT_ROOT BASE_CONFIG DEVICE_CONFIG EXTRA_CONFIG PACKAGES_FILE TARGETS_CONF
   [ "$PACKAGE_MANAGER" = apk ] || die "Only APK targets are configured"
-  if [ ! -f "$DEVICE_CONFIG" ] || [ ! -f "$PACKAGES_FILE" ] || [ ! -f "$EXTRA_CONFIG" ]; then
+  if [ ! -f "$BASE_CONFIG" ] || [ ! -f "$DEVICE_CONFIG" ] || [ ! -f "$PACKAGES_FILE" ] || [ ! -f "$EXTRA_CONFIG" ]; then
     die 'Missing configuration file'
   fi
 }
@@ -937,10 +943,13 @@ sync_source() {
     # This dedicated generated directory is reset; never point it at a work checkout.
     previous_origin="$(git -C "$SOURCE_DIR" remote get-url origin)"
     if [ "$previous_origin" != "$REPO_URL" ]; then
-      if [ "$FLAVOR" = immortalwrt ] && \
-        [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] && \
-        [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; then
-        echo 'Migrating generated ImmortalWrt checkout to the Athena-capable fork'
+      if { [ "$FLAVOR" = immortalwrt ] &&
+           [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] &&
+           [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; } ||
+         { [ "$FLAVOR" = libwrt ] &&
+           [ "$previous_origin" = https://github.com/LiBwrt/LibWrt.git ] &&
+           [ "$REPO_URL" = https://github.com/laipeng668/openwrt-6.x.git ]; }; then
+        echo "Migrating generated $FLAVOR checkout to the reference fork"
         git -C "$SOURCE_DIR" remote set-url origin "$REPO_URL"
       else
         die "Unexpected origin in $SOURCE_DIR: $previous_origin"
@@ -982,6 +991,13 @@ import shutil
 import subprocess
 import sys
 
+
+REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
+            'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
+            'kmod-br-netfilter', 'kmod-veth', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
+            'luci-app-re-homeproxy', 'momo', 'luci-app-momo', 'clashoo', 'luci-app-clashoo',
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
+            'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}
 
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
@@ -1074,7 +1090,13 @@ def audit(config, packages, flavor):
     values = assignments(config)
     expected = assignments(packages)
     warnings = [f"{key}=y (missing or not built-in)" for key, value in expected.items()
-                if key.startswith("CONFIG_PACKAGE_") and value == "y" and values.get(key) != "y"]
+                if key.startswith("CONFIG_PACKAGE_") and value == "y" and values.get(key) != "y"
+                and not (key.startswith("CONFIG_PACKAGE_luci-i18n-") and key.endswith("-zh_Hans")
+                         and values.get(key.removesuffix("-zh_Hans") + "-zh-cn") == "y")]
+    missing_required = sorted(package for package in REQUIRED_PACKAGES
+                              if values.get(f"CONFIG_PACKAGE_{package}") != "y")
+    if missing_required:
+        raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
     devices = selected_devices(values)
     if len(devices) != 1 or not all(is_athena(key) for key in devices):
         warnings.append(f"Selected devices must be Athena only: {devices}")
@@ -1084,8 +1106,6 @@ def audit(config, packages, flavor):
                 "CONFIG_DOCKER_CGROUP_OPTIONS", "CONFIG_PACKAGE_kmod-br-netfilter"):
         if values.get(key) != "y":
             warnings.append(f"Docker prerequisite missing: {key}")
-    if values.get("CONFIG_KERNEL_BRIDGE_NETFILTER") != "y":
-        warnings.append("CONFIG_KERNEL_BRIDGE_NETFILTER is absent; check kernel config via kmod-br-netfilter")
     for key, value in flavor_requirements(flavor).items():
         if values.get(key, "n") != value:
             warnings.append(f"{flavor} requires {key}={value}")
@@ -1139,17 +1159,12 @@ def i18n(source):
 
 
 def network_patch(source):
-    paths = [path for path in source.rglob("config_generate") if path.is_file()]
-    if not paths:
-        raise ValueError("No config_generate found; inspect upstream base-files layout")
-    for path in paths:
-        text = path.read_text()
-        changed = text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1")
-        if changed != text:
-            path.write_text(changed)
-        print(f"Default LAN source inspected/patched: {path.relative_to(source)}")
-    if any("192.168.1.1" in path.read_text() for path in paths):
-        raise ValueError("Old LAN default remains in config_generate")
+    path = source / "package/base-files/files/bin/config_generate"
+    text = path.read_text()
+    if not any(address in text for address in ("192.168.1.1", "192.168.2.1", "192.168.6.1")):
+        raise ValueError("Upstream LAN default changed; inspect config_generate")
+    path.write_text(text.replace("192.168.1.1", "192.168.6.1").replace("192.168.2.1", "192.168.6.1"))
+    print(f"Default LAN source patched: {path.relative_to(source)}")
 
 
 def lock(source, destination, flavor):
@@ -1195,13 +1210,15 @@ def artifacts(source, output, flavor):
         raise ValueError(f"Unexpected non-Athena images: {other}")
     if not any("sysupgrade" in path.name and path.stat().st_size for path in images):
         raise ValueError("No nonempty Athena sysupgrade image was generated")
+    if not any("factory" in path.name and path.stat().st_size for path in images):
+        raise ValueError("No nonempty Athena factory image was generated")
     if any(not path.stat().st_size for path in images):
         raise ValueError("An Athena image is empty")
     manifests = list(target.glob("*.manifest"))
     if not manifests:
         raise ValueError("No firmware manifest was generated")
     installed = {line.split()[0] for path in manifests for line in path.read_text().splitlines() if line.strip()}
-    required = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led'}
+    required = REQUIRED_PACKAGES
     if not required <= installed:
         raise ValueError(f"Required runtime packages missing: {sorted(required - installed)}")
     missing = [key.removeprefix("CONFIG_PACKAGE_") for key, value in values.items()

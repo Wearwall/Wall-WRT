@@ -29,10 +29,11 @@ load_target() {
   DEVICE_CONFIG="$PROJECT_ROOT/$(target_value "${FLAVOR}_device_config")"
   PACKAGES_FILE="$PROJECT_ROOT/$(target_value "${FLAVOR}_packages")"
   EXTRA_CONFIG="$PROJECT_ROOT/$(target_value "${FLAVOR}_extra_config")"
+  BASE_CONFIG="$PROJECT_ROOT/configs/roc-base.config"
   SOURCE_DIR="$SOURCE_ROOT/$FLAVOR"
-  export FLAVOR PROJECT_ROOT PACKAGES_FILE TARGETS_CONF
+  export FLAVOR PROJECT_ROOT BASE_CONFIG DEVICE_CONFIG EXTRA_CONFIG PACKAGES_FILE TARGETS_CONF
   [ "$PACKAGE_MANAGER" = apk ] || die "Only APK targets are configured"
-  if [ ! -f "$DEVICE_CONFIG" ] || [ ! -f "$PACKAGES_FILE" ] || [ ! -f "$EXTRA_CONFIG" ]; then
+  if [ ! -f "$BASE_CONFIG" ] || [ ! -f "$DEVICE_CONFIG" ] || [ ! -f "$PACKAGES_FILE" ] || [ ! -f "$EXTRA_CONFIG" ]; then
     die 'Missing configuration file'
   fi
 }
@@ -44,10 +45,13 @@ sync_source() {
     # This dedicated generated directory is reset; never point it at a work checkout.
     previous_origin="$(git -C "$SOURCE_DIR" remote get-url origin)"
     if [ "$previous_origin" != "$REPO_URL" ]; then
-      if [ "$FLAVOR" = immortalwrt ] && \
-        [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] && \
-        [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; then
-        echo 'Migrating generated ImmortalWrt checkout to the Athena-capable fork'
+      if { [ "$FLAVOR" = immortalwrt ] &&
+           [ "$previous_origin" = https://github.com/immortalwrt/immortalwrt.git ] &&
+           [ "$REPO_URL" = https://github.com/laipeng668/immortalwrt.git ]; } ||
+         { [ "$FLAVOR" = libwrt ] &&
+           [ "$previous_origin" = https://github.com/LiBwrt/LibWrt.git ] &&
+           [ "$REPO_URL" = https://github.com/laipeng668/openwrt-6.x.git ]; }; then
+        echo "Migrating generated $FLAVOR checkout to the reference fork"
         git -C "$SOURCE_DIR" remote set-url origin "$REPO_URL"
       else
         die "Unexpected origin in $SOURCE_DIR: $previous_origin"

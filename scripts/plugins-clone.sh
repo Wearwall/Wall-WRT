@@ -4,6 +4,7 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 TARGETS_CONF="${TARGETS_CONF:-$PROJECT_ROOT/configs/targets.conf}"
 FLAVOR="${FLAVOR:-libwrt}"
 PACKAGES_FILE="${PACKAGES_FILE:-$PROJECT_ROOT/$(awk -F= -v key="${FLAVOR}_packages" '$1 == key {print $2}' "$TARGETS_CONF")}"
+BASE_CONFIG="${BASE_CONFIG:-$PROJECT_ROOT/configs/roc-base.config}"
 THIRD_PARTY_SOURCES_FILE="${THIRD_PARTY_SOURCES_FILE:-$PWD/third-party-sources.txt}"
 if [ ! -f scripts/feeds ] || [ ! -f "$PACKAGES_FILE" ]; then
   echo 'Error: run inside a source tree with a valid packages list' >&2
@@ -18,7 +19,7 @@ package_enabled() {
       $0 == symbol "=y" { selected = 1 }
       $0 == symbol "=n" || $0 == symbol "=m" || $0 == "# " symbol " is not set" { selected = 0 }
       END { exit(selected ? 0 : 1) }
-    ' "$PACKAGES_FILE"; then return 0; fi
+    ' "$BASE_CONFIG" "$PACKAGES_FILE"; then return 0; fi
   done
   return 1
 }
@@ -71,7 +72,55 @@ if [ ! -f package/wall-golang-source/lang/golang/golang-package.mk ] || \
 fi
 rm -rf feeds/packages/lang/golang
 mv package/wall-golang-source/lang/golang feeds/packages/lang/golang
+if package_enabled luci-app-ddns ddns-scripts-cloudflare; then
+  rm -rf feeds/packages/net/ddns-scripts
+  mv package/wall-golang-source/net/ddns-scripts feeds/packages/net/ddns-scripts
+fi
 rm -rf package/wall-golang-source
+
+# Match the reference utility sources, alongside the guide's plugin overrides.
+replace_feed_paths() {
+  local repository="$1" branch="$2" feed="$3" path
+  shift 3
+  clone_repository "$repository" "$branch" package/wall-reference-feed
+  for path in "$@"; do
+    [ -f "package/wall-reference-feed/$path/Makefile" ] || {
+      echo "Error: reference feed layout changed: $repository $path" >&2; return 1;
+    }
+    rm -rf "feeds/$feed/$path"
+    mkdir -p "feeds/$feed/$(dirname "$path")"
+    mv "package/wall-reference-feed/$path" "feeds/$feed/$path"
+  done
+  rm -rf package/wall-reference-feed
+}
+if package_enabled luci-app-ddns; then
+  replace_feed_paths https://github.com/laipeng668/luci master luci applications/luci-app-ddns
+fi
+if package_enabled luci-app-frpc luci-app-frps; then
+  replace_feed_paths https://github.com/laipeng668/packages frp-binary packages net/frp
+  frp_paths=()
+  for app in frpc frps; do
+    if package_enabled "luci-app-$app"; then frp_paths+=("applications/luci-app-$app"); fi
+  done
+  replace_feed_paths https://github.com/laipeng668/luci frp luci "${frp_paths[@]}"
+  for path in "${frp_paths[@]}"; do sed -i '/^LUCI_EXTRA_DEPENDS:=/d' "feeds/luci/$path/Makefile"; done
+fi
+if package_enabled luci-app-upnp; then
+  replace_feed_paths https://github.com/immortalwrt/packages master packages net/miniupnpd
+fi
+utility_paths=()
+for app in upnp wol; do
+  if package_enabled "luci-app-$app"; then utility_paths+=("applications/luci-app-$app"); fi
+done
+if [ "${#utility_paths[@]}" -gt 0 ]; then
+  replace_feed_paths https://github.com/immortalwrt/luci master luci "${utility_paths[@]}"
+fi
+if package_enabled luci-theme-argon luci-app-argon-config; then
+  clone_repository https://github.com/jerrykuku/luci-theme-argon master feeds/luci/themes/luci-theme-argon
+fi
+if package_enabled luci-app-argon-config; then
+  clone_repository https://github.com/jerrykuku/luci-app-argon-config master feeds/luci/applications/luci-app-argon-config
+fi
 
 # Disabled plugins must not survive a repeated build's previous clones.
 for spec in \
