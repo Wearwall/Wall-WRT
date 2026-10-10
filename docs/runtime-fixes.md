@@ -43,3 +43,11 @@
 `check-tailscale-ui.js` 加载真实上游界面，使用 LuCI 表单、DOM 和 RPC 模拟器执行初始渲染、设备轮询、筛选和刷新。原始源码重现 lastDevicesStatus 异常；只修第一个变量时重现 peerTableHeaders 异常；完整修正后两条分支的真实文件均通过测试，重复应用补丁无重复定义。每次克隆后执行相同检查，界面回归会在耗时编译前失败。CI 与 Docker 增加 Node.js 工具依赖。
 
 这是界面逻辑验证，未连接用户的路由器或实际 Tailnet。新固件刷入后需强制刷新浏览器，避免使用缓存的旧 tailscale.js。
+
+## 代理启动失败：2026-10-10 设备日志
+
+本次提供的日志明确显示三个不同状态：Momo 在启动核心前因缺少带 dns-in 标签和 listen_port 的 DNS 入站而退出；HomeProxy 在生成客户端配置时失败，没有生成运行配置文件；Nikki RS 的本次 app.log 表示插件已禁用。这些证据不足以认定 sing-box 或 clash-rs 二进制崩溃。
+
+HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-homeproxy-startup.py，把生成器错误写入界面诊断使用的 homeproxy.log，并在 DNS/路由修改之前检查非空配置、执行 sing-box check。保留 hiddify 的原有启动方式，不擅自改写用户节点或订阅。
+
+临时启动测试覆盖生成器失败、核心配置校验失败和成功三种路径：错误信息保留到日志，失败路径不会进入后续 DNS/路由设置；有效配置可以继续启动流程。Shell 语法、ShellCheck 和 actionlint 通过。此修改增强错误呈现和失败处理，实际配置生成失败的根因仍需设备上的生成器/配置校验输出定位。没有据此更换核心版本或宣称实机代理已恢复。

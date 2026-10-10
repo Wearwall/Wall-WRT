@@ -191,6 +191,7 @@ fi
 if package_enabled luci-app-re-homeproxy; then
   rm -rf feeds/luci/applications/luci-app-homeproxy feeds/luci/applications/luci-app-re-homeproxy
   clone_repository https://github.com/1andrevich/homeproxy-hiddify master package/luci-app-re-homeproxy
+  python3 "$PROJECT_ROOT/scripts/patch-homeproxy-startup.py" package/luci-app-re-homeproxy/root/etc/init.d/homeproxy
 fi
 if package_enabled momo luci-app-momo; then
   rm -rf feeds/packages/net/momo feeds/luci/applications/luci-app-momo
