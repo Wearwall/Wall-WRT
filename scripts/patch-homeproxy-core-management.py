@@ -14,26 +14,7 @@ def patch_backend(path):
     text = path.read_text()
     if '// Wall-WRT: core update diagnostics' in text:
         return
-    helper = '''// Wall-WRT: core update diagnostics; keep TLS and package verification settings.
-function wall_wrt_release(core) {
-\tconst url = core === 'hiddify'
-\t\t? 'https://api.github.com/repos/1andrevich/hiddify-core/releases/latest'
-\t\t: 'https://api.github.com/repos/shtorm-7/sing-box-extended/releases/latest';
-\tconst logfile = '/tmp/homeproxy-core-api.log';
-\tconst fd = popen(`if command -v curl >/dev/null 2>&1; then curl -fLsS --connect-timeout 5 --max-time 10 --retry 1 --retry-max-time 20 -H 'User-Agent: Wall-WRT-HomeProxy' ${shellquote(url)}; else wget -O- --timeout=20 -U Wall-WRT-HomeProxy ${shellquote(url)}; fi 2>${shellquote(logfile)}`);
-\tif (!fd) return { error: 'Could not start GitHub release query' };
-\tconst raw = trim(fd.read('all'));
-\tconst rc = fd.close();
-\tif (rc !== 0)
-\t\treturn { error: 'GitHub release query failed: ' + substr(trim(readfile(logfile) || `exit ${rc}`), -600) };
-\tlet data;
-\ttry { data = json(raw); } catch(e) { data = null; }
-\tif (!data?.tag_name)
-\t\treturn { error: 'GitHub release response: ' + (data?.message || (length(raw) ? 'invalid release JSON' : 'empty response')) };
-\treturn { data };
-}
-
-'''
+    helper = Path(__file__).with_name('homeproxy-release.uc').read_text() + '\n'
     text = replace_once(text, 'const action = ARGV[0];', helper + 'const action = ARGV[0];')
     start = text.index("} else if (action === 'check_remote') {")
     end = text.index("} else if (action === 'prepare_install') {", start)
@@ -51,7 +32,7 @@ function wall_wrt_release(core) {
     # Both version lookup and package selection must use the same error-aware query.
     start = text.index("\t\t\t\t\t\tconst api_fd = popen(")
     end = text.index('\t\t\t\t\t\t\t\tlet dl_url = null;', start)
-    text = text[:start] + '''\t\t\t\t\t\tconst release = wall_wrt_release(core);
+    text = text[:start] + '''\t\t\t\t\t\tconst release = wall_wrt_release(core, true);
 \t\t\t\t\t\tif (release.error) {
 \t\t\t\t\t\t\tresult = { error: release.error };
 \t\t\t\t\t\t} else {

@@ -11,7 +11,7 @@ import sys
 
 REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
-            'kmod-br-netfilter', 'kmod-veth', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
+            'kmod-br-netfilter', 'kmod-veth', 'kmod-nft-queue', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
             'luci-app-re-homeproxy', 'momo', 'luci-app-momo',
             'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
             'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}

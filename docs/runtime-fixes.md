@@ -81,3 +81,13 @@ HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-ho
 真实 ucode 执行上游脚本已成功查询在线 GitHub release；受控命令模拟覆盖 HTTP 403、API 限流消息、非法 JSON、有效版本和 APK 安装失败/成功，验证失败信息返回、失败包保留及成功清理。真实界面核心卡片测试覆盖普通/扩展/hiddify 标识、空准备响应不触发下载且恢复按钮。双分支补丁幂等、JS/Python 语法、ShellCheck/actionlint 通过。这些是查询和错误处理验证，不代表设备网络或 hiddify 安装已修好。
 
 设备后续重新执行 DNS 热修时报告 no main_node。生成器只有在当前 UCI 读取结果为空或 nil 时出现此消息；已有订阅更新和删除节点流程可能改变这个值，应检查当前保存值，不能只根据旧页面截图推断，也没有据此自动选取用户节点。
+
+### GitHub 限流与 hiddify 缺少内核模块已确认
+
+进一步输出确认 GitHub API 的响应为 HTTP 403 rate limit exceeded，而 GitHub 发布资产下载正常；不是容量不足，也不能归为所有 GitHub 连接都失败。hiddify-core 4.1.0 包下载成功，APK 模拟安装明确缺少 kmod-nft-queue。此次 main_node 查询已经有非空节点标识，不能继续认定主节点未保存。
+
+新增 `homeproxy-release.uc` 作为准备脚本注入的共享函数。API 查询失败后读取 GitHub releases/latest 页面取得实际标签；安装准备还读取 expanded_assets 页面取得真实 APK/IPK 下载链接，再按原有架构和包格式筛选，不猜测文件名，不要求用户提供 GitHub 令牌，不关闭 TLS 校验。版本检查只读取标签，减少额外请求；回退也失败时保留两条路径的错误信息。
+
+在两种固件的共享配置中选入 kmod-nft-queue，并加入配置与成品 manifest 的强制检查。两条真实源码分别执行 make defconfig 和配置审计，kmod-nft-queue、kmod-nfnetlink-queue、kmod-nft-core 都为 y。尚未编译新模块或在设备上安装；现有 snapshot 固件必须从匹配其 kernel 依赖的仓库取得模块，不能强制忽略依赖。
+
+真实 ucode 测试在模拟 API 403 的情况下访问真实 GitHub 发布页面，正确取得当前标签和 aarch64_cortex-a53 APK 链接；额外覆盖正常回退、资产缺失、API 与页面都失败。此前 API 查询、安装器错误捕获和界面状态测试仍通过，ShellCheck/actionlint/Python 语法通过。按用户要求，代码同步继续跳过 CI，未发起新固件构建。
