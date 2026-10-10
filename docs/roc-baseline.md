@@ -48,3 +48,5 @@
 feeds 的 jool/openvswitch 元数据有上游 `kmod-nf-conntrack6` 缺失警告；两者未选入镜像，因此不影响本次配置。Cloudflared 中文名称实际为 zh-cn，审计接受 zh_Hans 的有效别名；bridge netfilter 由 kmod-br-netfilter 的 KCONFIG 提供，不依赖不存在的顶层候选符号。
 
 以上为源码/配置与脚本验证，不等同于完整固件编译或实机验证。实际编译由 GitHub Actions 执行，成功后按原规则自动发布。
+
+本次改造提交：`c1d42df`；双分支构建：[GitHub Actions 38008436292](https://github.com/Wearwall/Wall-WRT/actions/runs/38008436292)。该链接用于核对本次实际编译与自动发布结果。
