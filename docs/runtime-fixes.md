@@ -91,3 +91,11 @@ HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-ho
 在两种固件的共享配置中选入 kmod-nft-queue，并加入配置与成品 manifest 的强制检查。两条真实源码分别执行 make defconfig 和配置审计，kmod-nft-queue、kmod-nfnetlink-queue、kmod-nft-core 都为 y。尚未编译新模块或在设备上安装；现有 snapshot 固件必须从匹配其 kernel 依赖的仓库取得模块，不能强制忽略依赖。
 
 真实 ucode 测试在模拟 API 403 的情况下访问真实 GitHub 发布页面，正确取得当前标签和 aarch64_cortex-a53 APK 链接；额外覆盖正常回退、资产缺失、API 与页面都失败。此前 API 查询、安装器错误捕获和界面状态测试仍通过，ShellCheck/actionlint/Python 语法通过。按用户要求，代码同步继续跳过 CI，未发起新固件构建。
+
+### 失效的自定义 feed 地址
+
+用户设备 apk update 成功读取主 target/base/luci/packages/routing/telephony 和 iStore compat 索引，但 istore/openclash/passwall/passwall2/pw_packages 被生成到上游镜像默认路径，下载失败；更新索引后 kmod-nft-queue 仍无候选包。清理无效地址只能修复软件源报错，不能产生缺失的内核包。
+
+上游 tmp/.config-feeds.in 明确说明 CONFIG_FEED_* 仅控制生成的二进制仓库地址；本地插件是否编译由 CONFIG_PACKAGE_* 决定。共享配置禁用这五个默认仓库地址，保留全部已授权插件及 iStore 独立的 compat 地址，配置审计拒绝重新启用不存在的默认二进制源。
+
+两条分支执行 make defconfig 和配置审计通过，插件和已补入的 kmod-nft-queue 仍为内置包。直接调用真实上游 include/feeds.mk 的 FeedSourcesAppendAPK，验证五个错误地址不再生成、标准 feeds 均保留。源配置修改尚未应用到用户现有固件；该固件安装 hiddify 仍需要与其 kernel 依赖匹配的模块，后续构建已配置内置该模块。继续跳过 CI。

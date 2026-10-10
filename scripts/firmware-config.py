@@ -117,6 +117,9 @@ def audit(config, packages, flavor):
     if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
            for package in ("clashoo", "luci-app-clashoo")):
         raise ValueError("Clashoo is excluded from Athena firmware")
+    for feed in ("istore", "openclash", "passwall", "passwall2", "pw_packages"):
+        if values.get(f"CONFIG_FEED_{feed}") == "y":
+            raise ValueError(f"Build-only feed has no upstream binary repository: {feed}")
     devices = selected_devices(values)
     if len(devices) != 1 or not all(is_athena(key) for key in devices):
         warnings.append(f"Selected devices must be Athena only: {devices}")
