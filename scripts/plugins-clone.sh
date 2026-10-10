@@ -193,6 +193,7 @@ if package_enabled luci-app-re-homeproxy; then
   clone_repository https://github.com/1andrevich/homeproxy-hiddify master package/luci-app-re-homeproxy
   python3 "$PROJECT_ROOT/scripts/patch-homeproxy-startup.py" package/luci-app-re-homeproxy/root/etc/init.d/homeproxy
   python3 "$PROJECT_ROOT/scripts/patch-homeproxy-dns.py" package/luci-app-re-homeproxy/root/etc/homeproxy/scripts/generate_client.uc
+  python3 "$PROJECT_ROOT/scripts/patch-homeproxy-core-management.py" package/luci-app-re-homeproxy
 fi
 if package_enabled momo luci-app-momo; then
   rm -rf feeds/packages/net/momo feeds/luci/applications/luci-app-momo

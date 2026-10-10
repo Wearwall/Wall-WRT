@@ -69,3 +69,15 @@ HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-ho
 下载官方 sing-box 1.14.3 Linux AMD64 构建并核对 GitHub 资产 SHA256，使用本机编译的真实 ucode 执行新增逻辑。最小原配置实际运行复现设备的 DNS fatal；修正后的配置正常启动。回归验证代理/带标记/绑定接口的 detour、default_mark 保留及重复转换不改变结果；双分支补丁幂等、Python/ShellCheck/actionlint 通过。此处是同版本核心的本机配置验证，不是用户设备的完整运行验证。
 
 日志还记录过 `unknown transport type: xhttp`：当前固件的 SagerNet sing-box 不支持该传输，不能通过修正 DNS 得到支持。应使用当前核心支持的节点传输，或另行选择确实支持 XHTTP 的核心；本次未更换共享核心或伪造传输类型。用户要求暂停 GitHub 构建，本次修正提交跳过 CI。
+
+### 核心管理查询和安装错误反馈
+
+用户确认 DNS 热修后 HomeProxy 能运行。核心管理截图显示 hiddify 的 `package installation failed`、sing-box 的 `could not determine latest version from GitHub`，设备终端查询又返回 `no response from GitHub API`；433 MB 临时空间和 1730 MB overlay 空间不符合脚本的容量不足分支。hiddify 安装失败的具体原因仍待 APK 输出，不能据此认定是签名、依赖或文件冲突。
+
+新增 `patch-homeproxy-core-management.py`：版本检查和安装准备共享 GitHub 查询逻辑，优先 curl，缺少 curl 时用 wget，保持 TLS 校验，捕获 HTTP/连接错误并呈现 API 错误消息。安装器输出写入 `/tmp/homeproxy-core-install.log`，错误末尾反馈到页面；失败时保留临时包，成功后清理。安装器已有的包校验参数没有放宽，也没有执行真实核心替换。
+
+页面按检测到的核心变体区分普通 sing-box 和 extended；普通核心的按钮明确标为“安装扩展版”，并说明会切换变体。修复 RPC 准备返回空对象时继续下载的逻辑。补充对应中文翻译。
+
+真实 ucode 执行上游脚本已成功查询在线 GitHub release；受控命令模拟覆盖 HTTP 403、API 限流消息、非法 JSON、有效版本和 APK 安装失败/成功，验证失败信息返回、失败包保留及成功清理。真实界面核心卡片测试覆盖普通/扩展/hiddify 标识、空准备响应不触发下载且恢复按钮。双分支补丁幂等、JS/Python 语法、ShellCheck/actionlint 通过。这些是查询和错误处理验证，不代表设备网络或 hiddify 安装已修好。
+
+设备后续重新执行 DNS 热修时报告 no main_node。生成器只有在当前 UCI 读取结果为空或 nil 时出现此消息；已有订阅更新和删除节点流程可能改变这个值，应检查当前保存值，不能只根据旧页面截图推断，也没有据此自动选取用户节点。
