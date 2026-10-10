@@ -196,6 +196,7 @@ fi
 if package_enabled momo luci-app-momo; then
   rm -rf feeds/packages/net/momo feeds/luci/applications/luci-app-momo
   clone_repository https://github.com/nikkinikki-org/OpenWrt-momo main package/OpenWrt-momo
+  python3 "$PROJECT_ROOT/scripts/patch-momo-startup.py" package/OpenWrt-momo/momo/files/momo.init
 fi
 if package_enabled nikki-rs luci-app-nikki-rs; then
   rm -rf feeds/packages/net/nikki-rs feeds/luci/applications/luci-app-nikki-rs

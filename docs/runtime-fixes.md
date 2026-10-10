@@ -51,3 +51,11 @@
 HomeProxy 上游启动脚本未捕获生成器 stderr。本仓库新增 patch-homeproxy-startup.py，把生成器错误写入界面诊断使用的 homeproxy.log，并在 DNS/路由修改之前检查非空配置、执行 sing-box check。保留 hiddify 的原有启动方式，不擅自改写用户节点或订阅。
 
 临时启动测试覆盖生成器失败、核心配置校验失败和成功三种路径：错误信息保留到日志，失败路径不会进入后续 DNS/路由设置；有效配置可以继续启动流程。Shell 语法、ShellCheck 和 actionlint 通过。此修改增强错误呈现和失败处理，实际配置生成失败的根因仍需设备上的生成器/配置校验输出定位。没有据此更换核心版本或宣称实机代理已恢复。
+
+后续设备输出进一步定位：HomeProxy 生成器返回 `no main_node configured`，未读取到已保存的主节点；Momo 的 `sing-box check -c /etc/momo/run/config.json` 返回第 1 行第 1 列非法字符 `a`，说明运行文件无法解码为 JSON。此前缺少 DNS 入站的提示不能作为当前根因，需先纠正订阅内容。无法仅凭首字符判断具体服务器错误正文。
+
+共享插件准备新增 `patch-momo-startup.py`：下载成功后用 sing-box format 解码临时文件，失败时标记更新失败并保留已有缓存；启动时在混入之前解码输入，捕获混入与格式化失败并写入 core.log。保留用户的订阅、节点和核心版本，不自动转换 Clash YAML 或改写 DNS 入站。
+
+两条分支的真实上游启动脚本均成功应用补丁，重复应用不改变文件。隔离测试使用模拟下载和核心，验证 HTTP 成功但返回文本/YAML 时不覆盖缓存、有效 JSON 正常更新、解码/混入/格式化失败提前退出、正常路径继续。Shell 语法、仓库 ShellCheck、Python 语法与 actionlint 通过；这些检查不代表已在路由器上运行代理。
+
+现有设备可先在 HomeProxy 中选择主节点并保存应用；Momo 改用供应方提供的 sing-box 完整 JSON 配置订阅并重新更新，随后检查所选透明代理模式要求的入站。测试时一次只启用一个透明代理插件。Nikki RS 最近日志为 Disabled，若单独启用后仍退出，需要该次 app.log/core.log 才能定位。
