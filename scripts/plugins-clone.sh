@@ -160,10 +160,24 @@ rm -rf package/luci-app-homeproxy package/OpenWrt-nikki package/luci-app-nikki \
   package/passwall-packages package/luci-app-passwall package/luci-app-passwall2 package/luci-app-openclash
 
 if package_enabled tailscale luci-app-tailscale-community; then
-  rm -rf feeds/packages/net/tailscale package/tailscale
+  # The whzhni1 repository currently contains only its LuCI application
+  # (luci-app-tailscale/), while older revisions also shipped a tailscale
+  # daemon package. Keep the upstream OpenWrt daemon package when the latter
+  # is absent instead of aborting the whole build.
+  rm -rf package/tailscale package/whzhni1-tailscale
   clone_repository https://github.com/whzhni1/luci-app-tailscale main package/whzhni1-tailscale
-  [ -f package/whzhni1-tailscale/tailscale/Makefile ] || { echo 'Error: Tailscale repository layout changed' >&2; exit 1; }
-  mv package/whzhni1-tailscale/tailscale feeds/packages/net/tailscale
+  tailscale_dir=''
+  if [ -f package/whzhni1-tailscale/tailscale/Makefile ]; then
+    tailscale_dir=package/whzhni1-tailscale/tailscale
+  else
+    tailscale_dir=$(find package/whzhni1-tailscale -type f -path '*/tailscale/Makefile' -printf '%h\n' -quit)
+  fi
+  if [ -n "$tailscale_dir" ]; then
+    rm -rf feeds/packages/net/tailscale
+    mv "$tailscale_dir" feeds/packages/net/tailscale
+  else
+    echo 'Tailscale daemon package not included by whzhni1/luci-app-tailscale; retaining the OpenWrt feed package.'
+  fi
   rm -rf package/whzhni1-tailscale
 fi
 if package_enabled luci-app-tailscale-community; then

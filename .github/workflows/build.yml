@@ -23,7 +23,8 @@ on:
       - '.github/workflows/build.yml'
       - '.github/workflows/release.yml'
   schedule:
-    - cron: '17 3 * * *'
+    # Once per month, on the 3rd (03:17 UTC / 11:17 Asia-Shanghai).
+    - cron: '17 3 3 * *'
 
 permissions:
   contents: read
@@ -56,7 +57,7 @@ jobs:
     name: Athena / ${{ matrix.flavor }}
     needs: validate
     # Register the entry via a real push run, without starting a firmware build.
-    # Normal pushes, daily schedules and manual dispatches still compile.
+    # Normal pushes, monthly schedules and manual dispatches still compile.
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[workflow-register]')
     runs-on: ubuntu-24.04
     timeout-minutes: 360
