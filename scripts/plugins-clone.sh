@@ -107,9 +107,8 @@ if package_enabled luci-app-frpc luci-app-frps; then
   replace_feed_paths https://github.com/laipeng668/luci frp luci "${frp_paths[@]}"
   for path in "${frp_paths[@]}"; do sed -i '/^LUCI_EXTRA_DEPENDS:=/d' "feeds/luci/$path/Makefile"; done
 fi
-if package_enabled luci-app-upnp; then
-  replace_feed_paths https://github.com/immortalwrt/packages master packages net/miniupnpd
-fi
+# Keep the target feed's miniupnpd package. Replacing it with the moving
+# ImmortalWrt copy can introduce patches that do not match the pinned source.
 utility_paths=()
 for app in upnp wol; do
   if package_enabled "luci-app-$app"; then utility_paths+=("applications/luci-app-$app"); fi
