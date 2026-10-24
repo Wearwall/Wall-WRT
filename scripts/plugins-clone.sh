@@ -158,6 +158,21 @@ fi
 rm -rf package/luci-app-homeproxy package/OpenWrt-nikki package/luci-app-nikki \
   package/passwall-packages package/luci-app-passwall package/luci-app-passwall2 package/luci-app-openclash
 
+# dae/daed: keep the complete, versioned package set together.  The project
+# publishes the source tarballs referenced by these Makefiles, so copying the
+# package directories (rather than adding a moving feed) keeps firmware builds
+# reproducible while still tracking the repository's package definitions.
+rm -rf package/daede-source package/dae package/daed package/luci-app-daede package/vmlinux-btf
+clone_repository https://github.com/kenzok8/openwrt-daede main package/daede-source
+for daede_package in dae daed luci-app-daede; do
+  [ -f "package/daede-source/$daede_package/Makefile" ] || {
+    echo "Error: openwrt-daede package layout changed: $daede_package" >&2
+    exit 1
+  }
+  mv "package/daede-source/$daede_package" "package/$daede_package"
+done
+rm -rf package/daede-source
+
 if package_enabled tailscale luci-app-tailscale-community; then
   # The whzhni1 repository currently contains only its LuCI application
   # (luci-app-tailscale/), while older revisions also shipped a tailscale
