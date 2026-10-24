@@ -164,7 +164,7 @@ rm -rf package/luci-app-homeproxy package/OpenWrt-nikki package/luci-app-nikki \
 # reproducible while still tracking the repository's package definitions.
 rm -rf package/daede-source package/dae package/daed package/luci-app-daede package/vmlinux-btf
 clone_repository https://github.com/kenzok8/openwrt-daede main package/daede-source
-for daede_package in dae daed luci-app-daede; do
+for daede_package in dae daed luci-app-daede vmlinux-btf; do
   [ -f "package/daede-source/$daede_package/Makefile" ] || {
     echo "Error: openwrt-daede package layout changed: $daede_package" >&2
     exit 1
