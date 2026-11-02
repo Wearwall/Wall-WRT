@@ -47,7 +47,7 @@ add_link_feed() {
   [ -f feeds.conf ] || cp feeds.conf.default feeds.conf
   for file in feeds.conf.default feeds.conf; do
     sed -i -E "/^src-link[[:space:]]+${name}[[:space:]]/d" "$file"
-    printf 'src-link %s %s/%s\\n' "$name" "$PWD" "$path" >> "$file"
+    printf 'src-link %s %s/%s\n' "$name" "$PWD" "$path" >> "$file"
   done
 }
 
@@ -64,10 +64,12 @@ prepare_honk_feed() {
     git -C package/honk-feed fetch --depth 1 origin "$repo_rev"
     git -C package/honk-feed checkout -q FETCH_HEAD
   fi
+  printf '%s\t%s\t%s\n' "$repo_url" "$repo_rev" "$(git -C package/honk-feed rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
   if [ ! -d package/honk-feed/honk/src/.git ] || [ "$(git -C package/honk-feed/honk/src describe --tags --exact-match 2>/dev/null || true)" != "$src_tag" ]; then
     rm -rf package/honk-feed/honk/src
     git clone --depth 1 --branch "$src_tag" "$src_url" package/honk-feed/honk/src
   fi
+  printf '%s\t%s\t%s\n' "$src_url" "$src_tag" "$(git -C package/honk-feed/honk/src rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
   add_link_feed honk-local package/honk-feed
 }
 
