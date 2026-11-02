@@ -28,7 +28,7 @@ def move_json(path, old, new):
     data = json.loads(path.read_text())
     result = {}
     for key, value in data.items():
-        target = key.replace(old, new, 1) if key.startswith(old + "/") else key
+        target = key.replace(old, new, 1) if key == old or key.startswith(old + "/") else key
         if target in result:
             raise ValueError(f"Duplicate LuCI route {target}: {path}")
         result[target] = value
