@@ -62,10 +62,11 @@ def check_source(source, flavor):
             raise ValueError(f"Missing Athena board integration: {path}")
     if "$(call Device/EmmcImage)" not in text.split("define Device/jdcloud_re-cs-02", 1)[1].split("endef", 1)[0]:
         raise ValueError("Athena eMMC image layout changed; review upstream")
-    kernel_makefile = (source / "include/kernel-6.12").read_text() if (source / "include/kernel-6.12").is_file() else ""
-    kernel = re.search(r"^LINUX_VERSION-6\.12\s*:=\s*([0-9.]+)", kernel_makefile, re.M)
+    makefile = (target / "Makefile").read_text()
+    kernel_key = "KERNEL_TESTING_PATCHVER" if flavor == "immortalwrt" else "KERNEL_PATCHVER"
+    kernel = re.search(rf"^{kernel_key}\\s*:?=\\s*([0-9]+(?:\\.[0-9]+)+)", makefile, re.M)
     if not kernel or tuple(map(int, kernel[1].split("."))) < (6, 12):
-        raise ValueError("honk requires Linux 6.12 or newer")
+        raise ValueError(f"honk requires Linux 6.12 or newer; check {kernel_key}")
     print(f"{flavor}: Linux {kernel[1]} meets honk's minimum kernel version")
     print(f"{flavor}: Athena image/device-tree/network/calibration/eMMC integration found")
     print(f"Source commit: {git(source, 'rev-parse', 'HEAD')}")
