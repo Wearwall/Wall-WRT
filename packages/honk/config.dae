@@ -1,0 +1,24 @@
+# Default honk configuration. Replace direct routing with node subscriptions/rules before enabling.
+global {
+  lan_interface: br-lan
+  wan_interface: auto
+  log_level: info
+  bootstrap_resolver: '119.29.29.29:53'
+}
+dns {
+  upstream { local: 'udp://127.0.0.1:53' }
+  routing {
+    request { fallback: local }
+    response { fallback: local }
+  }
+}
+routing { fallback: direct }
+experimental {
+  native_api {
+    enabled: true
+    listen: '127.0.0.1:9527'
+    password_auth: true
+    config_write: true
+    ui: 'embedded'
+  }
+}
