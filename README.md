@@ -48,7 +48,7 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 
 | VPN | WireGuard | 上游内核与 LuCI 软件包 | 网络 → 接口；VPN → WireGuard | 构建协议、工具和内核模块；初始不预置接口 |
 | 设置 | 网络设置向导（netwizard） | rmreboot/luci-app-wizard | LuCI | 构建；运行向导会改写网络配置 |
 
-- 下一版新增 LuCI 顶级「VPN」菜单：WireGuard 状态页，以及 Re:HomeProxy、FullCombo Shark!、OpenClash、Nikki RS、Honk、Daed 均移到该菜单下；各应用的设置子页保留。代理核心（hiddify-core / sing-box / clash-rs / mihomo）均为刷机后或构建期从 Release 下载，不覆盖系统 sing-box。
+- 下一版沿用 LuCI 已有的顶级「VPN」菜单：WireGuard 状态页，以及 Re:HomeProxy、FullCombo Shark!、OpenClash、Nikki RS、Honk、Daed 均移到该菜单下；各应用的设置子页保留。代理核心（hiddify-core / sing-box / clash-rs / mihomo）均为刷机后或构建期从 Release 下载，不覆盖系统 sing-box。
 - 备用插件的配置选择关闭，因此新版本固件不打包 momo、Passwall、Passwall2 及 Passwall 共同依赖；相应源码和插件 feeds/仓库定义仍保留在本仓库，可日后重新启用。
 - 下一版两种固件均不选入 Vlmcsd、UPnP/PCP/NAT-PMP（miniupnpd）、3cat、Watchcat、frp 服务器及其 LuCI 页面。`luci-app-uhttpd` 设置页面也关闭；LuCI 赖以提供 Web 管理界面的 `uhttpd` 主服务继续保留。源码和 feed 定义不删除，frp 客户端仍保留。
 - 「VPN → WireGuard」状态页只显示已建立的接口。首次配置请到「网络 → 接口 → 添加新接口」，协议选择 WireGuard VPN，再填写私钥、地址和对端；固件已选入 `luci-proto-wireguard`、`wireguard-tools` 与 `kmod-wireguard`。
