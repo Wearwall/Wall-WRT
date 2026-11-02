@@ -12,9 +12,8 @@ import sys
 REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config', 'athena-led', 'luci-app-athena-led',
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'kmod-nft-queue', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
-            'luci-app-re-homeproxy', 'momo', 'luci-app-momo',
-            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash',
-            'luci-app-passwall', 'luci-app-passwall2', 'luci-app-adguardhome'}
+            'luci-app-re-homeproxy',
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'honk', 'luci-app-honk', 'luci-app-adguardhome'}
 
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
