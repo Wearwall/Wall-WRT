@@ -1,0 +1,13 @@
+# Based on qichiyuhub/rule config/honk/config.dae.
+# Replace the subscription placeholder, verify rules and interfaces before using.
+subscription {
+  # sub: 'REPLACE_WITH_YOUR_SUBSCRIPTION_URL' {
+  #   ua: 'clash.meta/1.19.30'
+  #   interval: 0s
+  #   cache: false
+  #   route: direct
+  # }
+}
+# Import the remaining rules from the upstream example after review.
+# Enable only after adding a real subscription or node and validating the
+# interface names and management API exposure for this device.
