@@ -88,6 +88,7 @@ jobs:
           if grep -q '^CONFIG_PACKAGE_honk=y' "configs/$( [ "$FLAVOR" = libwrt ] && echo libwrt || echo immortalwrt )-packages.txt"; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
             HONK_SRC="sources/$FLAVOR/package/honk-feed/honk/src"
             core_toolchain=$(sed -n 's/^channel *= *"\\([^"]*\\)".*/\\1/p' "$HONK_SRC/rust-toolchain.toml")
             ebpf_toolchain=$(sed -n 's/^channel *= *"\\([^"]*\\)".*/\\1/p' "$HONK_SRC/crates/honk-ebpf/rust-toolchain.toml")
