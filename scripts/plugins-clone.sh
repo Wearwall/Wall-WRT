@@ -44,7 +44,6 @@ add_feed() {
 
 configure_feeds() {
   if package_enabled luci-app-store; then add_feed istore https://github.com/linkease/istore main; fi
-  if package_enabled honk luci-app-honk; then add_feed honk-local https://github.com/daeuniverse/openwrt-packages.git f930ef7c90ea1f64c38d38c1a9587ae78e6e6e82; fi
   if package_enabled luci-app-openclash; then add_feed openclash https://github.com/vernesong/OpenClash.git master; fi
   if package_enabled luci-app-passwall luci-app-passwall2; then
     add_feed pw_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git main
