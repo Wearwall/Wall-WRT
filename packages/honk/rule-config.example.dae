@@ -1,5 +1,11 @@
 # Based on qichiyuhub/rule config/honk/config.dae.
-# Replace the subscription placeholder, verify rules and interfaces before using.
+# Replace the placeholder URL and validate the profile and interfaces before enabling.
+global {
+  lan_interface: br-lan
+  wan_interface: auto
+  log_level: info
+  bootstrap_resolver: '119.29.29.29:53'
+}
 subscription {
   # sub: 'REPLACE_WITH_YOUR_SUBSCRIPTION_URL' {
   #   ua: 'clash.meta/1.19.30'
@@ -8,6 +14,15 @@ subscription {
   #   route: direct
   # }
 }
-# Import the remaining rules from the upstream example after review.
-# Enable only after adding a real subscription or node and validating the
-# interface names and management API exposure for this device.
+dns {
+  upstream {
+    local: 'udp://127.0.0.1:53'
+  }
+  routing {
+    request { fallback: local }
+    response { fallback: local }
+  }
+}
+routing {
+  fallback: direct
+}
