@@ -39,6 +39,7 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 
 | VPN | OpenClash | vernesong/OpenClash | 原生 | 构建 |
 | VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
 | VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
+| VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
 | VPN | Passwall | OpenWrt-Passwall/openwrt-passwall | 原生 | 备用，不构建 |
 | VPN | Passwall2 | OpenWrt-Passwall/openwrt-passwall2 | 原生 | 备用，不构建 |
 | VPN | Passwall 共同依赖 | OpenWrt-Passwall/openwrt-passwall-packages | 无独立菜单 | 备用，不构建 |
