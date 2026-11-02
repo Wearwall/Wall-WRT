@@ -45,9 +45,11 @@ add_feed() {
 add_link_feed() {
   local name="$1" path="$2" file
   [ -f feeds.conf ] || cp feeds.conf.default feeds.conf
+  local feed_path
+  feed_path="$(cd "$path" && pwd)"
   for file in feeds.conf.default feeds.conf; do
     sed -i -E "/^src-link[[:space:]]+${name}[[:space:]]/d" "$file"
-    printf 'src-link %s %s/%s\n' "$name" "$PWD" "$path" >> "$file"
+    printf 'src-link %s %s\n' "$name" "$feed_path" >> "$file"
   done
 }
 
