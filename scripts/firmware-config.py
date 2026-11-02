@@ -64,7 +64,7 @@ def check_source(source, flavor):
         raise ValueError("Athena eMMC image layout changed; review upstream")
     makefile = (target / "Makefile").read_text()
     kernel_key = "KERNEL_TESTING_PATCHVER" if flavor == "immortalwrt" else "KERNEL_PATCHVER"
-    kernel = re.search(rf"^{kernel_key}\\s*:?=\\s*([0-9]+(?:\\.[0-9]+)+)", makefile, re.M)
+    kernel = re.search(rf"^{kernel_key}\s*:?=\s*([0-9]+(?:\.[0-9]+)+)", makefile, re.M)
     if not kernel or tuple(map(int, kernel[1].split("."))) < (6, 12):
         raise ValueError(f"honk requires Linux 6.12 or newer; check {kernel_key}")
     print(f"{flavor}: Linux {kernel[1]} meets honk's minimum kernel version")
