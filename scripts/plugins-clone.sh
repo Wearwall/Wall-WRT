@@ -72,7 +72,7 @@ prepare_honk_feed() {
     git clone --depth 1 --branch "$src_tag" "$src_url" package/honk-feed/honk/src
   fi
   printf '%s\t%s\t%s\n' "$src_url" "$src_tag" "$(git -C package/honk-feed/honk/src rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
-  add_link_feed honk-local package/honk-feed
+  add_link_feed honk_local package/honk-feed
 }
 
 configure_feeds() {
@@ -277,8 +277,8 @@ fi
 
 if package_enabled honk luci-app-honk; then
   prepare_honk_feed
-  ./scripts/feeds update honk-local
-  ./scripts/feeds install -p honk-local honk luci-lib-daeuniverse luci-app-honk
+  ./scripts/feeds update honk_local
+  ./scripts/feeds install -p honk_local honk luci-lib-daeuniverse luci-app-honk
   mkdir -p "$PROJECT_ROOT/files/etc/honk"
   cp package/honk-feed/honk/files/config.dae "$PROJECT_ROOT/files/etc/honk/config.dae"
   cp "$PROJECT_ROOT/packages/honk/rule-config.example.dae" "$PROJECT_ROOT/files/etc/honk/rule-config.example.dae"
