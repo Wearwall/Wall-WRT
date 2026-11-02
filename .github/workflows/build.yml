@@ -93,9 +93,16 @@ jobs:
             core_toolchain=$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$HONK_SRC/rust-toolchain.toml")
             ebpf_toolchain=$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$HONK_SRC/crates/honk-ebpf/rust-toolchain.toml")
             rustup toolchain install "$core_toolchain" --profile minimal --component rustfmt --component clippy
+            rustup target add --toolchain "$core_toolchain" aarch64-unknown-linux-musl
             rustup toolchain install "$ebpf_toolchain" --profile minimal --component rust-src --component llvm-tools
-            bpf_linker_version=$(sed -n 's/^BPF_LINKER_VERSION=//p' "$HONK_SRC/.github/ci/pins.env")
-            cargo install bpf-linker --version "$bpf_linker_version"
+            # Match the Honk OpenWrt feed's pinned, prebuilt BPF linker.
+            source "$HONK_SRC/.github/ci/pins.env"
+            linker_archive="$RUNNER_TEMP/bpf-linker.tar.zst"
+            curl -fsSL --retry 3 -o "$linker_archive" \
+              "https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+            echo "${BPF_LINKER_SHA256}  $linker_archive" | sha256sum -c -
+            zstd -dc "$linker_archive" | tar -xf - -C "$HOME/.cargo/bin"
+            bpf-linker --version
           fi
       - name: Cache identity
         id: identity
