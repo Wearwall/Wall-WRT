@@ -62,6 +62,11 @@ def check_source(source, flavor):
             raise ValueError(f"Missing Athena board integration: {path}")
     if "$(call Device/EmmcImage)" not in text.split("define Device/jdcloud_re-cs-02", 1)[1].split("endef", 1)[0]:
         raise ValueError("Athena eMMC image layout changed; review upstream")
+    kernel_makefile = (source / "include/kernel-6.12").read_text() if (source / "include/kernel-6.12").is_file() else ""
+    kernel = re.search(r"^LINUX_VERSION-6\.12\s*:=\s*([0-9.]+)", kernel_makefile, re.M)
+    if not kernel or tuple(map(int, kernel[1].split("."))) < (6, 12):
+        raise ValueError("honk requires Linux 6.12 or newer")
+    print(f"{flavor}: Linux {kernel[1]} meets honk's minimum kernel version")
     print(f"{flavor}: Athena image/device-tree/network/calibration/eMMC integration found")
     print(f"Source commit: {git(source, 'rev-parse', 'HEAD')}")
     if flavor == "immortalwrt":
@@ -78,10 +83,20 @@ def flavor_requirements(flavor):
     if flavor == "libwrt":
         return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y",
                 "CONFIG_PACKAGE_vmlinux-btf": "y",
-                "CONFIG_PACKAGE_vmlinux-btf-builtin": "n"}
+                "CONFIG_PACKAGE_vmlinux-btf-builtin": "n",
+                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
+                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
+                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
+                "CONFIG_KERNEL_NET_NS": "y",
+                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y"}
     if flavor == "immortalwrt":
         return {"CONFIG_PACKAGE_vmlinux-btf": "n",
                 "CONFIG_PACKAGE_vmlinux-btf-builtin": "y",
+                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
+                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
+                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
+                "CONFIG_KERNEL_NET_NS": "y",
+                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y",
                 "CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
                 "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
                 "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
