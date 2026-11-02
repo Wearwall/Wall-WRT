@@ -13,7 +13,14 @@ REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config'
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'kmod-nft-queue', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
             'luci-app-re-homeproxy',
-            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'dae', 'daed', 'luci-app-daede', 'honk', 'luci-lib-daeuniverse', 'luci-app-honk', 'luci-app-adguardhome', 'luci-app-netwizard'}
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'dae', 'daed', 'luci-app-daede', 'honk', 'luci-lib-daeuniverse', 'luci-app-honk', 'luci-app-adguardhome', 'luci-app-netwizard',
+            'luci-proto-wireguard', 'wireguard-tools', 'kmod-wireguard'}
+
+EXCLUDED_PACKAGES = {'luci-app-upnp', 'miniupnpd', 'miniupnpd-nftables',
+                     'luci-app-vlmcsd', 'vlmcsd', 'luci-app-3cat',
+                     'luci-app-watchcat', 'watchcat', 'luci-app-uhttpd',
+                     'luci-app-frps', 'frps'}
+
 
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
@@ -133,6 +140,10 @@ def audit(config, packages, flavor):
                               if values.get(f"CONFIG_PACKAGE_{package}") != "y")
     if missing_required:
         raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
+    built_excluded = sorted(package for package in EXCLUDED_PACKAGES
+                            if values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m"))
+    if built_excluded:
+        raise ValueError(f"Optional services must stay out of this firmware: {built_excluded}")
     if any(values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m")
            for package in ("clashoo", "luci-app-clashoo")):
         raise ValueError("Clashoo is excluded from Athena firmware")
