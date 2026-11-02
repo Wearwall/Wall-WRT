@@ -42,9 +42,42 @@ add_feed() {
   done
 }
 
+add_link_feed() {
+  local name="$1" path="$2" file
+  [ -f feeds.conf ] || cp feeds.conf.default feeds.conf
+  local feed_path
+  feed_path="$(cd "$path" && pwd)"
+  for file in feeds.conf.default feeds.conf; do
+    sed -i -E "/^src-link[[:space:]]+${name}[[:space:]]/d" "$file"
+    printf 'src-link %s %s\n' "$name" "$feed_path" >> "$file"
+  done
+}
+
+prepare_honk_feed() {
+  local repo_url=https://github.com/daeuniverse/openwrt-packages
+  local repo_rev=f930ef7c90ea1f64c38d38c1a9587ae78e6e6e82
+  local src_url=https://github.com/daeuniverse/honk
+  local src_tag=v0.1.0-beta.4
+  mkdir -p package
+  if [ ! -d package/honk-feed/.git ] || [ "$(git -C package/honk-feed rev-parse HEAD 2>/dev/null || true)" != "$repo_rev" ]; then
+    rm -rf package/honk-feed
+    git init -q package/honk-feed
+    git -C package/honk-feed remote add origin "$repo_url"
+    git -C package/honk-feed fetch --depth 1 origin "$repo_rev"
+    git -C package/honk-feed checkout -q FETCH_HEAD
+  fi
+  printf '%s\t%s\t%s\n' "$repo_url" "$repo_rev" "$(git -C package/honk-feed rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
+  if [ ! -d package/honk-feed/honk/src/.git ] || [ "$(git -C package/honk-feed/honk/src describe --tags --exact-match 2>/dev/null || true)" != "$src_tag" ]; then
+    rm -rf package/honk-feed/honk/src
+    git clone --depth 1 --branch "$src_tag" "$src_url" package/honk-feed/honk/src
+  fi
+  printf '%s\t%s\t%s\n' "$src_url" "$src_tag" "$(git -C package/honk-feed/honk/src rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
+  add_link_feed honk-local package/honk-feed
+}
+
 configure_feeds() {
+  if package_enabled honk luci-app-honk; then prepare_honk_feed; fi
   if package_enabled luci-app-store; then add_feed istore https://github.com/linkease/istore main; fi
-  if package_enabled honk luci-app-honk; then add_feed honk-local https://github.com/daeuniverse/openwrt-packages.git f930ef7c90ea1f64c38d38c1a9587ae78e6e6e82; fi
   if package_enabled luci-app-openclash; then add_feed openclash https://github.com/vernesong/OpenClash.git master; fi
   if package_enabled luci-app-passwall luci-app-passwall2; then
     add_feed pw_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git main
@@ -243,9 +276,12 @@ if package_enabled luci-app-adguardhome; then
 fi
 
 if package_enabled honk luci-app-honk; then
+  prepare_honk_feed
+  ./scripts/feeds update honk-local
   ./scripts/feeds install -p honk-local honk luci-lib-daeuniverse luci-app-honk
   mkdir -p "$PROJECT_ROOT/files/etc/honk"
-  cp "$PROJECT_ROOT/packages/honk/config.dae" "$PROJECT_ROOT/files/etc/honk/config.dae"
+  cp package/honk-feed/honk/files/config.dae "$PROJECT_ROOT/files/etc/honk/config.dae"
+  cp "$PROJECT_ROOT/packages/honk/rule-config.example.dae" "$PROJECT_ROOT/files/etc/honk/rule-config.example.dae"
 fi
 
 # Prevent feed precedence from shadowing the explicitly requested app feeds.

@@ -13,7 +13,7 @@ REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config'
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'kmod-nft-queue', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
             'luci-app-re-homeproxy',
-            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'honk', 'luci-app-honk', 'luci-app-adguardhome'}
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'dae', 'daed', 'luci-app-daede', 'honk', 'luci-lib-daeuniverse', 'luci-app-honk', 'luci-app-adguardhome'}
 
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
@@ -62,6 +62,12 @@ def check_source(source, flavor):
             raise ValueError(f"Missing Athena board integration: {path}")
     if "$(call Device/EmmcImage)" not in text.split("define Device/jdcloud_re-cs-02", 1)[1].split("endef", 1)[0]:
         raise ValueError("Athena eMMC image layout changed; review upstream")
+    makefile = (target / "Makefile").read_text()
+    kernel_key = "KERNEL_TESTING_PATCHVER" if flavor == "immortalwrt" else "KERNEL_PATCHVER"
+    kernel = re.search(rf"^{kernel_key}\\s*:?=\\s*([0-9]+(?:\\.[0-9]+)+)", makefile, re.M)
+    if not kernel or tuple(map(int, kernel[1].split("."))) < (6, 12):
+        raise ValueError(f"honk requires Linux 6.12 or newer; check {kernel_key}")
+    print(f"{flavor}: Linux {kernel[1]} meets honk's minimum kernel version")
     print(f"{flavor}: Athena image/device-tree/network/calibration/eMMC integration found")
     print(f"Source commit: {git(source, 'rev-parse', 'HEAD')}")
     if flavor == "immortalwrt":
@@ -76,9 +82,23 @@ def check_source(source, flavor):
 
 def flavor_requirements(flavor):
     if flavor == "libwrt":
-        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y"}
+        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y",
+                "CONFIG_PACKAGE_vmlinux-btf": "y",
+                "CONFIG_PACKAGE_vmlinux-btf-builtin": "n",
+                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
+                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
+                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
+                "CONFIG_KERNEL_NET_NS": "y",
+                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y"}
     if flavor == "immortalwrt":
-        return {"CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
+        return {"CONFIG_PACKAGE_vmlinux-btf": "n",
+                "CONFIG_PACKAGE_vmlinux-btf-builtin": "y",
+                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
+                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
+                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
+                "CONFIG_KERNEL_NET_NS": "y",
+                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y",
+                "CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
                 "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
                 "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
     raise ValueError(f"Unknown flavor: {flavor}")
