@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move selected LuCI pages under a shared VPN menu before package compilation."""
+"""Move selected LuCI package menus into the VPN top-level menu."""
 import json
 from pathlib import Path
 import re
@@ -10,7 +10,7 @@ APPS = {
     "luci-app-re-homeproxy": ("admin/services/homeproxy", "admin/vpn/homeproxy"),
     "luci-app-fchomo": ("admin/services/fchomo", "admin/vpn/fchomo"),
     "luci-app-openclash": ("admin/services/openclash", "admin/vpn/openclash"),
-    "luci-app-nikki-rs": ("admin/services/nikki-rs", "admin/vpn/nikki-rs"),
+    "luci-app-nikki-rs": ("admin/services", "admin/vpn"),
     "luci-app-honk": ("admin/services/honk", "admin/vpn/honk"),
     "luci-app-daede": ("admin/services/daede", "admin/vpn/daede"),
 }
@@ -26,33 +26,27 @@ def sources(name):
 
 def move_json(path, old, new):
     data = json.loads(path.read_text())
-    changed = False
     result = {}
     for key, value in data.items():
-        target = key.replace(old, new, 1) if key == old or key.startswith(old + "/") else key
-        if target != key:
-            changed = True
+        target = key.replace(old, new, 1) if key.startswith(old + "/") else key
         if target in result:
-            raise ValueError(f"Duplicate LuCI menu route {target}: {path}")
+            raise ValueError(f"Duplicate LuCI route {target}: {path}")
         result[target] = value
-    if changed:
-        # LuCI actions may use route aliases; keep their route targets consistent.
-        raw = json.dumps(result, ensure_ascii=False, indent=2)
-        raw = raw.replace(old, new)
-        path.write_text(raw + "\n")
-    return changed
+    if result == data:
+        return False
+    raw = json.dumps(result, ensure_ascii=False, indent=2).replace(old, new)
+    path.write_text(raw + "\n")
+    return True
 
 
 def move_lua(path, old, new):
     parts = old.split("/")
-    replacement = new.split("/")
     text = path.read_text()
-    pattern = re.compile(r'(["\'])admin\1\s*,\s*(["\'])' + re.escape(parts[1]) +
-                         r'\2\s*,\s*(["\'])' + re.escape(parts[2]) + r'\3')
-    def replace(match):
-        return (f'{match[1]}admin{match[1]}, {match[2]}{replacement[1]}{match[2]}, '
-                f'{match[3]}{replacement[2]}{match[3]}')
-    updated, count = pattern.subn(replace, text)
+    # Match LuCI entry()/alias() route arrays, retaining their quote style.
+    pattern = re.compile(r'(["\'])admin\1\s*,\s*(["\'])' + re.escape(parts[1]) + r'\2')
+    def substitute(match):
+        return f'{match[1]}admin{match[1]}, {match[2]}vpn{match[2]}'
+    updated, count = pattern.subn(substitute, text)
     if count:
         path.write_text(updated)
     return bool(count)
