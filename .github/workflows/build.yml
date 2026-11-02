@@ -83,9 +83,12 @@ jobs:
           if grep -q '^CONFIG_PACKAGE_honk=y' "configs/$( [ "$FLAVOR" = libwrt ] && echo libwrt || echo immortalwrt )-packages.txt"; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-            rustup toolchain install stable --profile minimal --component rustfmt --component clippy
-            rustup toolchain install nightly --profile minimal --component rust-src --component llvm-tools
-            bpf_linker_version=$(sed -n 's/^BPF_LINKER_VERSION=//p' sources/$FLAVOR/package/honk-feed/honk/src/.github/ci/pins.env)
+            HONK_SRC="sources/$FLAVOR/package/honk-feed/honk/src"
+            core_toolchain=$(sed -n 's/^channel *= *"\\([^"]*\\)".*/\\1/p' "$HONK_SRC/rust-toolchain.toml")
+            ebpf_toolchain=$(sed -n 's/^channel *= *"\\([^"]*\\)".*/\\1/p' "$HONK_SRC/crates/honk-ebpf/rust-toolchain.toml")
+            rustup toolchain install "$core_toolchain" --profile minimal --component rustfmt --component clippy
+            rustup toolchain install "$ebpf_toolchain" --profile minimal --component rust-src --component llvm-tools
+            bpf_linker_version=$(sed -n 's/^BPF_LINKER_VERSION=//p' "$HONK_SRC/.github/ci/pins.env")
             cargo install bpf-linker --version "$bpf_linker_version"
           fi
           df -h .
