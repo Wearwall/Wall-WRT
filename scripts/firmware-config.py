@@ -84,20 +84,10 @@ def flavor_requirements(flavor):
         return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y",
                 "CONFIG_PACKAGE_vmlinux-btf": "y",
                 "CONFIG_PACKAGE_vmlinux-btf-builtin": "n",
-                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
-                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
-                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
-                "CONFIG_KERNEL_NET_NS": "y",
-                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y",
 }
     if flavor == "immortalwrt":
         return {"CONFIG_PACKAGE_vmlinux-btf": "n",
                 "CONFIG_PACKAGE_vmlinux-btf-builtin": "y",
-                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
-                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
-                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
-                "CONFIG_KERNEL_NET_NS": "y",
-                "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y",
                 "CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
                 "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
                 "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
