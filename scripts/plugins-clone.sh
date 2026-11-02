@@ -285,6 +285,17 @@ if package_enabled luci-app-netwizard; then
   rm -rf package/luci-app-netwizard
   mv package/wall-netwizard-source/luci-app-netwizard package/luci-app-netwizard
   rm -rf package/wall-netwizard-source
+  wizard_menu=package/luci-app-netwizard/root/usr/share/luci/menu.d/luci-app-netwizard.json
+  [ -f "$wizard_menu" ] || { echo 'Error: netwizard LuCI menu missing' >&2; exit 1; }
+  python3 - "$wizard_menu" <<'PY'
+import json
+from pathlib import Path
+import sys
+menu = Path(sys.argv[1])
+data = json.loads(menu.read_text())
+data["admin/netwizard"]["title"] = "向导"
+menu.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+PY
 fi
 
 if package_enabled honk luci-app-honk; then
