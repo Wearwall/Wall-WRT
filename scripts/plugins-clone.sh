@@ -71,6 +71,7 @@ prepare_honk_feed() {
     git clone --depth 1 --branch "$src_tag" "$src_url" honk-feed/honk/src
   fi
   printf '%s\t%s\t%s\n' "$src_url" "$src_tag" "$(git -C honk-feed/honk/src rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
+  python3 "$PROJECT_ROOT/scripts/patch-honk-toolchain.py" honk-feed/honk/build.sh
   add_link_feed honk_local honk-feed
 }
 
