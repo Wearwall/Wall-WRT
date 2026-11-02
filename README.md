@@ -38,8 +38,6 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 
 | VPN | FullCombo Shark | fcshark-org/openwrt-fchomo | 原生 | 构建 |
 | VPN | OpenClash | vernesong/OpenClash | 原生 | 构建 |
 | VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
-| VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
-| VPN | honk | daeuniverse/honk + 官方 OpenWrt packages feed | 服务 → honk | 构建（Linux 6.12+，与 dae 互斥运行） |
 | VPN | Passwall | OpenWrt-Passwall/openwrt-passwall | 原生 | 备用，不构建 |
 | VPN | Passwall2 | OpenWrt-Passwall/openwrt-passwall2 | 原生 | 备用，不构建 |
 | VPN | Passwall 共同依赖 | OpenWrt-Passwall/openwrt-passwall-packages | 无独立菜单 | 备用，不构建 |
@@ -47,10 +45,13 @@ SSID 变量位于 `files/etc/uci-defaults/99-athena-defaults` 顶部，按 band 
 | 服务 | Tailscale 社区前端 | Tokisaki-Galaxy/luci-app-tailscale-community | 服务 | 构建 |
 | 服务 | Cloudflare | 官方 packages / luci feed | 服务 | 构建 |
 | 服务 | AdGuardHome | rufengsuixing/luci-app-adguardhome（仅 Lua 管理页） | 服务 | 构建 |
+| VPN | WireGuard | 上游内核与 LuCI 软件包 | 网络 → 接口；状态 → WireGuard | 构建协议、工具和内核模块；初始不预置接口 |
 | 设置 | 网络设置向导（netwizard） | rmreboot/luci-app-wizard | LuCI | 构建；运行向导会改写网络配置 |
 
 - 「VPN」仅为功能分类，未新增统一顶级节点，保留各插件原生路径与子菜单；代理核心（hiddify-core / sing-box / clash-rs / mihomo）均为刷机后或构建期从 Release 下载，不覆盖系统 sing-box。
 - 备用插件的配置选择关闭，因此新版本固件不打包 momo、Passwall、Passwall2 及 Passwall 共同依赖；相应源码和插件 feeds/仓库定义仍保留在本仓库，可日后重新启用。
+- 下一版两种固件均不选入 Vlmcsd、UPnP/PCP/NAT-PMP（miniupnpd）、3cat、Watchcat、frp 服务器及其 LuCI 页面。`luci-app-uhttpd` 设置页面也关闭；LuCI 赖以提供 Web 管理界面的 `uhttpd` 主服务继续保留。源码和 feed 定义不删除，frp 客户端仍保留。
+- WireGuard 的「状态」页只显示已建立的接口。首次配置请到「网络 → 接口 → 添加新接口」，协议选择 WireGuard VPN，再填写私钥、地址和对端；固件已选入 `luci-proto-wireguard`、`wireguard-tools` 与 `kmod-wireguard`。
 - 其余透明代理插件可同时勾选，但依赖兼容性未经编译验证；运行时只启用一个，防火墙规则可能互相覆盖。
 - 全局开启 `CONFIG_LUCI_LANG_zh_Hans=y`，由 gen-i18n.sh 在首次 defconfig 后扫描已选中的 `luci-app-*` 实际 po 目录与 luci.mk 的 LUCI_LC_ALIAS 生成映射，不硬编码清单；缺翻译仅告警。中文界面仍须实机核对。
 - iStore UI 需联网访问 istore.linkease.com；官方说明仅覆盖 x86_64/arm64，本机型运行与应用兼容未验证。
