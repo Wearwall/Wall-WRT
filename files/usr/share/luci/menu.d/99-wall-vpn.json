@@ -1,0 +1,9 @@
+{
+  "admin/vpn": {
+    "title": "VPN",
+    "order": 35,
+    "action": {
+      "type": "firstchild"
+    }
+  }
+}
