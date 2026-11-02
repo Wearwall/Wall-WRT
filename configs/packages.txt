@@ -39,6 +39,12 @@ CONFIG_DAE_USE_VMLINUX_BTF=y
 CONFIG_DAED_USE_VMLINUX_BTF=y
 # Select the OpenWrt BPF toolchain choice so defconfig retains USE_LLVM_HOST.
 CONFIG_BPF_TOOLCHAIN_HOST=y
+# Select honk core, embedded Doona UI and LuCI management.
+CONFIG_PACKAGE_honk=y
+CONFIG_PACKAGE_luci-app-honk=y
+CONFIG_PACKAGE_vmlinux-btf-builtin=y
+CONFIG_PACKAGE_v2ray-geoip=y
+CONFIG_PACKAGE_v2ray-geosite=y
 CONFIG_PACKAGE_luci-app-openclash=y
 # Backup only: Passwall apps and shared dependencies are not built.
 # CONFIG_PACKAGE_luci-app-passwall is not set
