@@ -280,7 +280,10 @@ if package_enabled honk luci-app-honk; then
   ./scripts/feeds update honk-local
   ./scripts/feeds install -p honk-local honk luci-lib-daeuniverse luci-app-honk
   mkdir -p "$PROJECT_ROOT/files/etc/honk"
-  cp "$PROJECT_ROOT/packages/honk/config.dae" "$PROJECT_ROOT/files/etc/honk/config.dae"
+  cp package/honk-feed/honk/files/config.dae "$PROJECT_ROOT/files/etc/honk/config.dae"
+  # Keep the first-run management UI on loopback until the user explicitly changes it.
+  sed -i "s/listen: '0.0.0.0:9527'/listen: '127.0.0.1:9527'/" "$PROJECT_ROOT/files/etc/honk/config.dae"
+  cp "$PROJECT_ROOT/packages/honk/rule-config.example.dae" "$PROJECT_ROOT/files/etc/honk/rule-config.example.dae"
 fi
 
 # Prevent feed precedence from shadowing the explicitly requested app feeds.
