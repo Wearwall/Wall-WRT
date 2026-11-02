@@ -242,12 +242,6 @@ if package_enabled luci-app-adguardhome; then
   clone_repository https://github.com/rufengsuixing/luci-app-adguardhome master package/luci-app-adguardhome
 fi
 
-# Install the reviewed safe honk config into the firmware overlay.
-if package_enabled honk luci-app-honk; then
-  mkdir -p "$PROJECT_ROOT/files/etc/honk"
-  cp "$PROJECT_ROOT/packages/honk/config.dae" "$PROJECT_ROOT/files/etc/honk/config.dae"
-fi
-
 # Prevent feed precedence from shadowing the explicitly requested app feeds.
 for app in openclash passwall passwall2; do
   if package_enabled "luci-app-$app"; then rm -rf "feeds/luci/applications/luci-app-$app"; fi
