@@ -60,14 +60,11 @@ CONFIG_PACKAGE_luci-app-openclash=y
 CONFIG_PACKAGE_dnsmasq-full=y
 # CONFIG_PACKAGE_dnsmasq is not set
 
-# OpenClash's explicit dependencies; other proxy dependencies come from Makefiles.
+# OpenClash uses nftables on fw4; package Makefiles pull in any required runtime tools.
 CONFIG_PACKAGE_ipset=y
 CONFIG_PACKAGE_ip-full=y
 CONFIG_PACKAGE_ruby=y
 CONFIG_PACKAGE_ruby-yaml=y
-CONFIG_PACKAGE_kmod-ipt-nat=y
-CONFIG_PACKAGE_iptables-mod-tproxy=y
-CONFIG_PACKAGE_iptables-mod-extra=y
 CONFIG_PACKAGE_kmod-inet-diag=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-nft-queue=y
