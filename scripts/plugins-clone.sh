@@ -165,6 +165,7 @@ for spec in \
   'nikki-rs,luci-app-nikki-rs:package/OpenWrt-nikki-rs' \
   'mihomo,luci-app-fchomo:package/openwrt-fchomo' \
   'luci-app-adguardhome:package/luci-app-adguardhome' \
+  'luci-app-netwizard:package/luci-app-netwizard' \
   'luci-app-tailscale-community:package/luci-app-tailscale-community' \
   'luci-app-dockerman:package/lisaac-dockerman' \
   'luci-lib-docker,luci-app-dockerman:package/luci-lib-docker'; do
@@ -272,6 +273,18 @@ fi
 if package_enabled luci-app-adguardhome; then
   rm -rf feeds/luci/applications/luci-app-adguardhome
   clone_repository https://github.com/rufengsuixing/luci-app-adguardhome master package/luci-app-adguardhome
+fi
+if package_enabled luci-app-netwizard; then
+  # The repository is named luci-app-wizard, but the buildable package is
+  # its luci-app-netwizard/ subdirectory.
+  clone_repository https://github.com/rmreboot/luci-app-wizard main package/wall-netwizard-source
+  [ -f package/wall-netwizard-source/luci-app-netwizard/Makefile ] || {
+    echo 'Error: netwizard Makefile missing in rmreboot/luci-app-wizard' >&2
+    exit 1
+  }
+  rm -rf package/luci-app-netwizard
+  mv package/wall-netwizard-source/luci-app-netwizard package/luci-app-netwizard
+  rm -rf package/wall-netwizard-source
 fi
 
 if package_enabled honk luci-app-honk; then
