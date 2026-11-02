@@ -307,6 +307,9 @@ if package_enabled honk luci-app-honk; then
   cp "$PROJECT_ROOT/packages/honk/rule-config.example.dae" "$PROJECT_ROOT/files/etc/honk/rule-config.example.dae"
 fi
 
+# Relocate selected LuCI pages in the package sources before compilation.
+python3 "$PROJECT_ROOT/scripts/move-vpn-menus.py"
+
 # Prevent feed precedence from shadowing the explicitly requested app feeds.
 for app in openclash passwall passwall2; do
   if package_enabled "luci-app-$app"; then rm -rf "feeds/luci/applications/luci-app-$app"; fi
