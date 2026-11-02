@@ -89,7 +89,7 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
             export PATH="$HOME/.cargo/bin:$PATH"
-            HONK_SRC="sources/$FLAVOR/package/honk-feed/honk/src"
+            HONK_SRC="sources/$FLAVOR/honk-feed/honk/src"
             core_toolchain=$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$HONK_SRC/rust-toolchain.toml")
             ebpf_toolchain=$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$HONK_SRC/crates/honk-ebpf/rust-toolchain.toml")
             rustup toolchain install "$core_toolchain" --profile minimal --component rustfmt --component clippy
