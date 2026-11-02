@@ -19,8 +19,9 @@ CONFIG_PACKAGE_xz-utils=y
 
 # VPN: enable one transparent proxy at runtime.
 CONFIG_PACKAGE_luci-app-re-homeproxy=y
-CONFIG_PACKAGE_momo=y
-CONFIG_PACKAGE_luci-app-momo=y
+# Backup only: retained in repository, excluded from new firmware builds.
+# CONFIG_PACKAGE_momo is not set
+# CONFIG_PACKAGE_luci-app-momo is not set
 # CONFIG_PACKAGE_clashoo is not set
 # CONFIG_PACKAGE_luci-app-clashoo is not set
 CONFIG_PACKAGE_nikki-rs=y
@@ -39,10 +40,12 @@ CONFIG_DAED_USE_VMLINUX_BTF=y
 # Select the OpenWrt BPF toolchain choice so defconfig retains USE_LLVM_HOST.
 CONFIG_BPF_TOOLCHAIN_HOST=y
 CONFIG_PACKAGE_luci-app-openclash=y
-CONFIG_PACKAGE_luci-app-passwall=y
-CONFIG_PACKAGE_luci-app-passwall2=y
-CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
+# Backup only: Passwall apps and shared dependencies are not built.
+# CONFIG_PACKAGE_luci-app-passwall is not set
+# CONFIG_PACKAGE_luci-app-passwall2 is not set
+# CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy is not set
 # CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy is not set
+# Keep shared Passwall feed sources in-tree for future re-enabling; no package selection.
 CONFIG_PACKAGE_dnsmasq-full=y
 # CONFIG_PACKAGE_dnsmasq is not set
 
