@@ -13,7 +13,7 @@ REQUIRED_PACKAGES = {'dnsmasq-full', 'luci-theme-argon', 'luci-app-argon-config'
             'dockerd', 'docker', 'docker-compose', 'luci-app-dockerman', 'luci-lib-docker',
             'kmod-br-netfilter', 'kmod-veth', 'kmod-nft-queue', 'luci-app-store', 'tailscale', 'luci-app-tailscale-community', 'cloudflared', 'luci-app-cloudflared',
             'luci-app-re-homeproxy',
-            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'honk', 'luci-app-honk', 'luci-app-adguardhome'}
+            'nikki-rs', 'luci-app-nikki-rs', 'mihomo', 'luci-app-fchomo', 'luci-app-openclash', 'honk', 'luci-lib-daeuniverse', 'luci-app-honk', 'luci-app-adguardhome'}
 
 def git(directory, *args):
     return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
@@ -76,9 +76,13 @@ def check_source(source, flavor):
 
 def flavor_requirements(flavor):
     if flavor == "libwrt":
-        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y"}
+        return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y",
+                "CONFIG_PACKAGE_vmlinux-btf": "y",
+                "CONFIG_PACKAGE_vmlinux-btf-builtin": "n"}
     if flavor == "immortalwrt":
-        return {"CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
+        return {"CONFIG_PACKAGE_vmlinux-btf": "n",
+                "CONFIG_PACKAGE_vmlinux-btf-builtin": "y",
+                "CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
                 "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
                 "CONFIG_ATH11K_NSS_SUPPORT": "n", "CONFIG_ATH11K_NSS_MESH_SUPPORT": "n"}
     raise ValueError(f"Unknown flavor: {flavor}")
