@@ -140,6 +140,10 @@ def audit(config, packages, flavor):
                               if values.get(f"CONFIG_PACKAGE_{package}") != "y")
     if missing_required:
         raise ValueError(f"Required guide/runtime packages not built-in: {missing_required}")
+    for key in ("CONFIG_BPF_TOOLCHAIN_HOST", "CONFIG_USE_LLVM_HOST"):
+        if values.get(key) != "y":
+            raise ValueError(f"Host LLVM BPF toolchain missing after defconfig: {key}; "
+                             "otherwise bpf-headers uses /invalid/clang")
     built_excluded = sorted(package for package in EXCLUDED_PACKAGES
                             if values.get(f"CONFIG_PACKAGE_{package}") in ("y", "m"))
     if built_excluded:
