@@ -71,6 +71,7 @@ prepare_honk_feed() {
     git clone --depth 1 --branch "$src_tag" "$src_url" honk-feed/honk/src
   fi
   printf '%s\t%s\t%s\n' "$src_url" "$src_tag" "$(git -C honk-feed/honk/src rev-parse HEAD)" >> "$THIRD_PARTY_SOURCES_FILE"
+  python3 "$PROJECT_ROOT/scripts/patch-honk-toolchain.py" honk-feed/honk/build.sh
   add_link_feed honk_local honk-feed
 }
 
@@ -165,6 +166,7 @@ for spec in \
   'nikki-rs,luci-app-nikki-rs:package/OpenWrt-nikki-rs' \
   'mihomo,luci-app-fchomo:package/openwrt-fchomo' \
   'luci-app-adguardhome:package/luci-app-adguardhome' \
+  'luci-app-netwizard:package/luci-app-netwizard' \
   'luci-app-tailscale-community:package/luci-app-tailscale-community' \
   'luci-app-dockerman:package/lisaac-dockerman' \
   'luci-lib-docker,luci-app-dockerman:package/luci-lib-docker'; do
@@ -273,6 +275,29 @@ if package_enabled luci-app-adguardhome; then
   rm -rf feeds/luci/applications/luci-app-adguardhome
   clone_repository https://github.com/rufengsuixing/luci-app-adguardhome master package/luci-app-adguardhome
 fi
+if package_enabled luci-app-netwizard; then
+  # The repository is named luci-app-wizard, but the buildable package is
+  # its luci-app-netwizard/ subdirectory.
+  clone_repository https://github.com/rmreboot/luci-app-wizard main package/wall-netwizard-source
+  [ -f package/wall-netwizard-source/luci-app-netwizard/Makefile ] || {
+    echo 'Error: netwizard Makefile missing in rmreboot/luci-app-wizard' >&2
+    exit 1
+  }
+  rm -rf package/luci-app-netwizard
+  mv package/wall-netwizard-source/luci-app-netwizard package/luci-app-netwizard
+  rm -rf package/wall-netwizard-source
+  wizard_menu=package/luci-app-netwizard/root/usr/share/luci/menu.d/luci-app-netwizard.json
+  [ -f "$wizard_menu" ] || { echo 'Error: netwizard LuCI menu missing' >&2; exit 1; }
+  python3 - "$wizard_menu" <<'PY'
+import json
+from pathlib import Path
+import sys
+menu = Path(sys.argv[1])
+data = json.loads(menu.read_text())
+data["admin/netwizard"]["title"] = "向导"
+menu.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+PY
+fi
 
 if package_enabled honk luci-app-honk; then
   prepare_honk_feed
@@ -282,6 +307,9 @@ if package_enabled honk luci-app-honk; then
   cp honk-feed/honk/files/config.dae "$PROJECT_ROOT/files/etc/honk/config.dae"
   cp "$PROJECT_ROOT/packages/honk/rule-config.example.dae" "$PROJECT_ROOT/files/etc/honk/rule-config.example.dae"
 fi
+
+# Relocate selected LuCI pages in the package sources before compilation.
+python3 "$PROJECT_ROOT/scripts/move-vpn-menus.py"
 
 # Prevent feed precedence from shadowing the explicitly requested app feeds.
 for app in openclash passwall passwall2; do

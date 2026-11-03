@@ -13,7 +13,7 @@ on:
           - libwrt
           - immortalwrt
   push:
-    branches: [master]
+    branches: [master, codex/add-netwizard-both-flavors]
     paths:
       - 'build.sh'
       - 'configs/**'
@@ -80,6 +80,9 @@ jobs:
             libncurses-dev libssl-dev libelf-dev zlib1g-dev libbpf-dev pkg-config cmake libclang-dev binutils \
             python3 python3-setuptools python3-dev nodejs swig wget curl file \
             zstd ccache shellcheck
+          /usr/bin/clang --version
+          /usr/bin/clang -target bpf -x c -c -o "$RUNNER_TEMP/bpf-toolchain-smoke.o" - <<< 'int bpf_smoke;'
+          /usr/bin/llvm-strip --version
           df -h .
       - name: Sync upstream and feeds (no compilation)
         run: bash scripts/sync-upstream.sh
@@ -151,6 +154,7 @@ jobs:
   release:
     name: 发布带日期的固件
     needs: build
+    if: github.ref == 'refs/heads/master'
     permissions:
       actions: read
       contents: write
