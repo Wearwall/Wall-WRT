@@ -92,18 +92,10 @@ def flavor_requirements(flavor):
         return {"CONFIG_NSS_FIRMWARE_VERSION_11_4": "y",
                 "CONFIG_PACKAGE_vmlinux-btf": "y",
                 "CONFIG_PACKAGE_vmlinux-btf-builtin": "n",
-                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
-                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
-                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
-                "CONFIG_KERNEL_NET_NS": "y",
                 "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y"}
     if flavor == "immortalwrt":
         return {"CONFIG_PACKAGE_vmlinux-btf": "n",
                 "CONFIG_PACKAGE_vmlinux-btf-builtin": "y",
-                "CONFIG_KERNEL_BPF": "y", "CONFIG_KERNEL_BPF_SYSCALL": "y",
-                "CONFIG_KERNEL_BPF_JIT": "y", "CONFIG_KERNEL_CGROUP_BPF": "y",
-                "CONFIG_KERNEL_NET_SCHED": "y", "CONFIG_KERNEL_NET_CLS_ACT": "y",
-                "CONFIG_KERNEL_NET_NS": "y",
                 "CONFIG_PACKAGE_kmod-nft-queue": "y", "CONFIG_PACKAGE_kmod-nfnetlink-queue": "y",
                 "CONFIG_TESTING_KERNEL": "y", "CONFIG_NSS_FIRMWARE_VERSION_12_5": "y",
                 "CONFIG_ATH11K_MEM_PROFILE_512M": "y",
@@ -264,6 +256,17 @@ def artifacts(source, output, flavor):
     for key, value in flavor_requirements(flavor).items():
         if values.get(key, "n") != value:
             raise ValueError(f"Refusing {flavor} artifacts: {key} must be {value}")
+    kernel_configs = list(source.glob("build_dir/target-*/linux-qualcommax_ipq60xx/linux-*/.config"))
+    if len(kernel_configs) != 1:
+        raise ValueError(f"Expected one built Athena kernel config, found: {kernel_configs}")
+    kernel_values = assignments(kernel_configs[0])
+    for key in ("CONFIG_BPF", "CONFIG_BPF_SYSCALL", "CONFIG_BPF_JIT",
+                "CONFIG_NET_SCHED", "CONFIG_NET_CLS_ACT"):
+        if kernel_values.get(key) != "y":
+            raise ValueError(f"Refusing {flavor} artifacts: kernel {key} must be y")
+    for key in ("CONFIG_NET_CLS_BPF", "CONFIG_NET_ACT_BPF"):
+        if kernel_values.get(key) not in ("y", "m"):
+            raise ValueError(f"Refusing {flavor} artifacts: kernel {key} must be built")
     if values.get("CONFIG_TARGET_BOARD") != '"qualcommax"' or values.get("CONFIG_TARGET_SUBTARGET") != '"ipq60xx"':
         raise ValueError("Refusing artifacts: target is not qualcommax/ipq60xx")
     target = source / "bin/targets/qualcommax/ipq60xx"
@@ -294,6 +297,7 @@ def artifacts(source, output, flavor):
     for path in images + manifests + list(target.glob("*.buildinfo")) + list(target.glob("profiles.json")):
         shutil.copy2(path, output / path.name)
     shutil.copy2(source / ".config", output / "firmware.config")
+    shutil.copy2(kernel_configs[0], output / "kernel.config")
     shutil.copy2(source / "i18n-map.txt", output / "i18n-map.txt")
     (output / "build-info.json").write_text(json.dumps({"flavor": flavor, "device": "jdcloud_re-cs-02",
                                                       "source_commit": git(source, "rev-parse", "HEAD")}, indent=2) + "\n")
