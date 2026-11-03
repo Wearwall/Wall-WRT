@@ -1,0 +1,71 @@
+name: 先行发布 LibWRT 测试固件
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/publish-libwrt-preview.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: libwrt-preview-41554596465
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN_ID: '41554596465'
+      RELEASE_TAG: athena-20261103-41554596465-libwrt-preview
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful master LibWRT build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > source-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" > source-jobs.json
+          python3 - <<'PY'
+          import json
+          run = json.load(open('source-run.json'))
+          jobs = json.load(open('source-jobs.json'))['jobs']
+          assert run['path'] == '.github/workflows/build.yml'
+          assert run['head_branch'] == 'master'
+          assert run['head_sha'] == '22f3d000064b51a83fc7d3935b0901ac7452c95f'
+          assert any(job['name'] == 'Athena / libwrt' and job['conclusion'] == 'success' for job in jobs)
+          PY
+      - name: Download LibWRT artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 41554596465
+          name: Athena-libwrt-20261103-41554596465
+          path: downloaded/Athena-libwrt-20261103-41554596465
+      - name: Verify files and prepare release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare-release.py downloaded release "$SOURCE_RUN_ID"
+          grep -q 'libwrt' release/notes.md
+          printf '\n这是先行发布的 LibWRT 测试版；ImmortalWrt 仍在编译。正式双固件发布将使用独立的标准标签。\n' >> release/notes.md
+      - name: Publish unique preview release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite." >&2
+            exit 1
+          fi
+          commit=$(python3 -c 'import json; print(json.load(open("source-run.json"))["head_sha"])')
+          gh release create "$RELEASE_TAG" release/assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$commit" \
+            --title '京东雅典娜AX6600 2026-11-03 LibWRT 测试版' \
+            --notes-file release/notes.md \
+            --prerelease
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
