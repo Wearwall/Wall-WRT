@@ -286,6 +286,7 @@ if package_enabled luci-app-netwizard; then
   rm -rf package/luci-app-netwizard
   mv package/wall-netwizard-source/luci-app-netwizard package/luci-app-netwizard
   rm -rf package/wall-netwizard-source
+  python3 "$PROJECT_ROOT/scripts/patch-netwizard-ipv6.py" package/luci-app-netwizard/root/etc/init.d/netwizard
   wizard_menu=package/luci-app-netwizard/root/usr/share/luci/menu.d/luci-app-netwizard.json
   [ -f "$wizard_menu" ] || { echo 'Error: netwizard LuCI menu missing' >&2; exit 1; }
   python3 - "$wizard_menu" <<'PY'
